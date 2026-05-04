@@ -1,0 +1,10 @@
+{
+  "name": "WebFFT",
+  "short_name": "WebFFT",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0b0f13",
+  "theme_color": "#11171d",
+  "description": "TODO: Fill manifest metadata and icons.",
+  "icons": []
+}

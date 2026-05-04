@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WebFFT</title>
+    <meta name="description" content="Web-based DFT and audio processing playground." />
+    <link rel="stylesheet" href="assets/css/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark">WebFFT</span>
+          <span class="brand-subtitle">DFT and real-time audio lab</span>
+        </div>
+        <button class="ghost-button" id="start-audio" type="button">Start Audio</button>
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="WebFFT modes">
+        <button
+          class="tab is-active"
+          role="tab"
+          aria-selected="true"
+          aria-controls="panel-simulator"
+          id="tab-simulator"
+          data-tab="simulator"
+          type="button"
+        >
+          Simulator
+        </button>
+        <button
+          class="tab"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-analyzer"
+          id="tab-analyzer"
+          data-tab="analyzer"
+          type="button"
+        >
+          Analyzer
+        </button>
+        <button
+          class="tab"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-dtmf"
+          id="tab-dtmf"
+          data-tab="dtmf"
+          type="button"
+        >
+          DTMF Decoder
+        </button>
+        <button
+          class="tab"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-noise"
+          id="tab-noise"
+          data-tab="noise"
+          type="button"
+        >
+          Noise Reduction
+        </button>
+        <button
+          class="tab"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-tuner"
+          id="tab-tuner"
+          data-tab="tuner"
+          type="button"
+        >
+          Instrument Tuner
+        </button>
+      </nav>
+
+      <main class="panels">
+        <section
+          class="panel is-active"
+          role="tabpanel"
+          aria-labelledby="tab-simulator"
+          id="panel-simulator"
+        >
+          <div class="panel-header">
+            <h2>DFT Simulator</h2>
+            <p>Step through DFT math and FFT butterflies.</p>
+          </div>
+          <div class="panel-body">
+            <div class="placeholder-card">UI goes here.</div>
+          </div>
+        </section>
+
+        <section
+          class="panel"
+          role="tabpanel"
+          aria-labelledby="tab-analyzer"
+          id="panel-analyzer"
+          hidden
+        >
+          <div class="panel-header">
+            <h2>Spectrum Analyzer</h2>
+            <p>Real-time spectrum and spectrogram.</p>
+          </div>
+          <div class="panel-body">
+            <div class="placeholder-card">Canvas view goes here.</div>
+          </div>
+        </section>
+
+        <section
+          class="panel"
+          role="tabpanel"
+          aria-labelledby="tab-dtmf"
+          id="panel-dtmf"
+          hidden
+        >
+          <div class="panel-header">
+            <h2>DTMF Decoder</h2>
+            <p>Generate and detect DTMF tones.</p>
+          </div>
+          <div class="panel-body">
+            <div class="placeholder-card">Keypad goes here.</div>
+          </div>
+        </section>
+
+        <section
+          class="panel"
+          role="tabpanel"
+          aria-labelledby="tab-noise"
+          id="panel-noise"
+          hidden
+        >
+          <div class="panel-header">
+            <h2>Noise Reduction</h2>
+            <p>Spectral subtraction demo.</p>
+          </div>
+          <div class="panel-body">
+            <div class="placeholder-card">Controls go here.</div>
+          </div>
+        </section>
+
+        <section
+          class="panel"
+          role="tabpanel"
+          aria-labelledby="tab-tuner"
+          id="panel-tuner"
+          hidden
+        >
+          <div class="panel-header">
+            <h2>Instrument Tuner</h2>
+            <p>Detect pitch and cents.</p>
+          </div>
+          <div class="panel-body">
+            <div class="placeholder-card">Tuner display goes here.</div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <span>Audio is processed locally in your browser.</span>
+      </footer>
+    </div>
+
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
