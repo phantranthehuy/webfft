@@ -1,0 +1,38 @@
+# ===== Node.js =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ===== Build output (Vite) =====
+dist/
+.cache/
+
+# ===== Environment variables =====
+.env
+.env.local
+.env.*.local
+
+# ===== IDE & Editors =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Operating Systems =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===== Logs =====
+*.log
+
+# ===== Optional: PWA generated files (nếu Workbox tự sinh) =====
+# workbox-config.js
+# sw.js     ← thường là file tự viết thì không ignore; nếu Workbox build thì giữ trong dist, không ignore ở gốc
+
+# ===== Audio test fixtures (nếu có file tạm) =====
+# tests/fixtures/*.wav   ← thường giữ lại để test, nên không ignore
