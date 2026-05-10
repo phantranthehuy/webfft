@@ -156,7 +156,7 @@ function drawWaterfallFreqAxis(ctx, p) {
   }
 
   ctx.fillStyle = "rgba(159,176,191,0.85)";
-  ctx.font = `${Math.round(11 * sx)}px "IBM Plex Sans",system-ui,sans-serif`;
+  ctx.font = `${Math.round(11 * sx)}px "Helvetica Neue",Helvetica,Arial,system-ui,sans-serif`;
   ctx.textBaseline = "top";
 
   for (let ti = 0; ti < ticks.length; ti++) {
@@ -306,7 +306,7 @@ export function drawSpectrumFrame(canvas, analyser, opts) {
     }
 
     ctx.fillStyle = "rgba(159,176,191,0.85)";
-    ctx.font = `${Math.round(11 * sx)}px "IBM Plex Sans",system-ui,sans-serif`;
+    ctx.font = `${Math.round(11 * sx)}px "Helvetica Neue",Helvetica,Arial,system-ui,sans-serif`;
     ctx.textBaseline = "top";
 
     const nyquist = sampleRate / 2;
@@ -350,7 +350,7 @@ export function drawSpectrumFrame(canvas, analyser, opts) {
     ctx.translate(14 * sx, pT + plotH / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.textAlign = "center";
-    ctx.fillText(scale === "log" ? "dB (chuẩn hoá)" : "Biên độ (linear)", 0, 0);
+    ctx.fillText(scale === "log" ? "dB (chuẩn hoá)" : "Biên độ (tuyến tính)", 0, 0);
     ctx.restore();
 
     return;

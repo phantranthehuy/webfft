@@ -237,7 +237,7 @@ function simulateDit(seqIn, N) {
       }
     }
     stages.push({
-      title: `Stage DIT ${s} (kích thước bướm m = ${m})`,
+      title: `Giai đoạn DIT ${s} (kích thước bướm m = ${m})`,
       values: cloneSpectrum(A),
     });
   }
@@ -278,7 +278,7 @@ function simulateDif(seqIn, N) {
       }
     }
     stages.push({
-      title: `Stage DIF ${stage}`,
+      title: `Giai đoạn DIF ${stage}`,
       values: cloneSpectrum(A),
     });
   }
@@ -653,13 +653,13 @@ function mountDftSimulator(root) {
       const refSpectrum = allReal ? fft(reals) : dftFromComplex(seq0);
       const err = maxAbsDiff(finalSpectrum, refSpectrum);
       const refLabel = allReal
-        ? "fft(samples) trong dsp (N thực)"
-        : "DFT O(N²) tín hiệu phức (tham chiếu)";
+        ? "FFT radix‑2 trong dsp (chuỗi thực)"
+        : "DFT đầy đủ O(N²), tín hiệu phức (tham chiếu)";
       cmpHost.appendChild(
         document.createTextNode(
           algo === "DFT"
-            ? `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (DFT vs tham chiếu).`
-            : `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (${fftKind} mô phỏng vs tham chiếu).`,
+            ? `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (DFT mô phỏng so với tham chiếu).`
+            : `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (mô phỏng ${fftKind} so với tham chiếu).`,
         ),
       );
     } else {
@@ -767,7 +767,7 @@ function mountDftSimulator(root) {
   btn.type = "button";
   btn.className = "ghost-button dft-compute-primary";
   btn.id = "dft-compute";
-  btn.textContent = "Compute";
+  btn.textContent = "Tính toán";
 
   controlsTop.append(labMode, labN, labAlgo, labFft);
   controlsStepWrap.append(labStep);
@@ -794,38 +794,82 @@ function mountDftSimulator(root) {
 
   const secTw = document.createElement("section");
   secTw.className = "dft-section";
-  secTw.innerHTML = `<h3 class="dft-section-title">Ma trận twiddle W<sub>N</sub><sup>kn</sup></h3>`;
+  secTw.hidden = true;
+  const secTwTitle = document.createElement("h3");
+  secTwTitle.className = "dft-section-title";
+  secTwTitle.innerHTML = `Ma trận twiddle W<sub>N</sub><sup>kn</sup>`;
+  const secTwIntro = document.createElement("p");
+  secTwIntro.className = "dft-section-intro";
+  secTwIntro.textContent =
+    "Mỗi ô (k, n) là hệ số pha W_N^{kn} trong định nghĩa DFT: X[k] = Σ_n x[n]·W_N^{kn}. Ma trận giúp thấy rõ mối quan hệ giữa chỉ số tần k và chỉ số thời gian n trước khi cộng dồn.";
   const twHost = document.createElement("div");
   twHost.className = "dft-scroll";
-  secTw.appendChild(twHost);
+  secTw.append(secTwTitle, secTwIntro, twHost);
 
   const secSteps = document.createElement("section");
   secSteps.className = "dft-section";
-  secSteps.innerHTML = `<h3 class="dft-section-title">Từng bước</h3>`;
+  secSteps.hidden = true;
+  const secStepsTitle = document.createElement("h3");
+  secStepsTitle.className = "dft-section-title";
+  secStepsTitle.textContent = "Từng bước";
+  const secStepsIntro = document.createElement("p");
+  secStepsIntro.className = "dft-section-intro";
+  secStepsIntro.textContent =
+    "Chế độ DFT: liệt kê các đóng góp từng mẫu x[n] cho X[k], có thể duyệt k từng bước. Chế độ FFT: hiển thị giá trị sau hoán vị bit-reverse (nếu có) và sau mỗi giai đoạn DIT hoặc DIF.";
   const stepsHost = document.createElement("div");
   stepsHost.className = "dft-steps";
-  secSteps.appendChild(stepsHost);
+  secSteps.append(secStepsTitle, secStepsIntro, stepsHost);
 
   const secRes = document.createElement("section");
   secRes.className = "dft-section";
-  secRes.innerHTML = `<h3 class="dft-section-title">Kết quả cuối</h3>`;
+  secRes.hidden = true;
+  const secResTitle = document.createElement("h3");
+  secResTitle.className = "dft-section-title";
+  secResTitle.textContent = "Kết quả cuối";
+  const secResIntro = document.createElement("p");
+  secResIntro.className = "dft-section-intro";
+  secResIntro.textContent =
+    "Dãy X[0]…X[N−1] là phổ rời rạc của chuỗi đầu vào, cùng quy ước twiddle với module dsp của dự án.";
   const resHost = document.createElement("div");
   resHost.id = "dft-final";
-  secRes.appendChild(resHost);
+  secRes.append(secResTitle, secResIntro, resHost);
 
   const secCmp = document.createElement("section");
   secCmp.className = "dft-section";
-  secCmp.innerHTML = `<h3 class="dft-section-title">So với FFT radix-2 (dsp)</h3>`;
+  secCmp.hidden = true;
+  const secCmpTitle = document.createElement("h3");
+  secCmpTitle.className = "dft-section-title";
+  secCmpTitle.textContent = "So với FFT radix‑2 (dsp)";
+  const secCmpIntro = document.createElement("p");
+  secCmpIntro.className = "dft-section-intro";
+  secCmpIntro.textContent =
+    "Khi N là lũy thừa của 2, ta đối chiếu với kết quả tham chiếu trong dsp: FFT radix‑2 cho tín hiệu thực, hoặc DFT O(N²) đầy đủ cho tín hiệu phức. Sai số cực đại phản ánh sai khác làm tròn và đường đi tính toán.";
   const cmpHost = document.createElement("div");
   cmpHost.id = "dft-compare";
-  secCmp.appendChild(cmpHost);
+  secCmp.append(secCmpTitle, secCmpIntro, cmpHost);
 
   const secBf = document.createElement("section");
   secBf.className = "dft-section";
-  secBf.innerHTML = `<h3 class="dft-section-title">Sơ đồ bướm (SVG)</h3>`;
+  secBf.hidden = true;
+  const secBfTitle = document.createElement("h3");
+  secBfTitle.className = "dft-section-title";
+  secBfTitle.textContent = "Sơ đồ bướm (SVG)";
+  const secBfIntro = document.createElement("p");
+  secBfIntro.className = "dft-section-intro";
+  secBfIntro.textContent =
+    "Minh họa kết nối các phép bướm radix‑2 và twiddle W_N^m giữa các nút. Khi chọn DFT ở trên, sơ đồ hiển thị dạng DIT chuẩn để đối chiếu lý thuyết FFT.";
   const bfHost = document.createElement("div");
   bfHost.className = "dft-butterfly-host";
-  secBf.appendChild(bfHost);
+  secBf.append(secBfTitle, secBfIntro, bfHost);
+
+  function setResultSectionsVisible(visible) {
+    const hidden = !visible;
+    secTw.hidden = hidden;
+    secSteps.hidden = hidden;
+    secRes.hidden = hidden;
+    secCmp.hidden = hidden;
+    secBf.hidden = hidden;
+  }
 
   grid.append(
     controlsStack,
@@ -904,6 +948,7 @@ function mountDftSimulator(root) {
     clearHost(resHost);
     clearHost(cmpHost);
     clearHost(bfHost);
+    setResultSectionsVisible(true);
 
     try {
       const rawN = Number(String(inputN.value).trim());
@@ -1005,6 +1050,7 @@ function mountDftSimulator(root) {
       errBox.hidden = false;
       errBox.textContent =
         e instanceof Error ? e.message : "Đã xảy ra lỗi không xác định.";
+      setResultSectionsVisible(false);
     }
     },
     { signal },

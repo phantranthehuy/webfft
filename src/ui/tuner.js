@@ -268,7 +268,7 @@ async function connectTunerMic() {
     timeBuf = new Float32Array(analyser.fftSize);
 
     if (statusEl) {
-      statusEl.textContent = `Tuner · ${formatHz(sr, 0)} · fftSize ${FFT_SIZE} · A4 = ${formatHz(A4_HZ)} · chọn Peak hoặc YIN`;
+      statusEl.textContent = `Lên dây · FS ${formatHz(sr, 0)} · cỡ FFT ${FFT_SIZE} · La4 = ${formatHz(A4_HZ)} · chọn đỉnh phổ hoặc YIN`;
     }
 
     startLoop();
@@ -330,8 +330,8 @@ function mountTunerUi(root) {
     btn.textContent = title;
     btn.title =
       v === "peak"
-        ? "Đỉnh phổ (FFT)"
-        : "YIN — miền thời gian";
+        ? "Đỉnh phổ trên FFT của AnalyserNode"
+        : "Thuật toán YIN trên tín hiệu miền thời gian";
     btn.addEventListener(
       "click",
       () => {
@@ -353,7 +353,7 @@ function mountTunerUi(root) {
 
   canvasEl = document.createElement("canvas");
   canvasEl.className = "tuner-canvas";
-  canvasEl.setAttribute("aria-label", "Tuner cents và tên nốt");
+  canvasEl.setAttribute("aria-label", "Màn hình cents và tên nốt nhạc");
   canvasWrap.appendChild(canvasEl);
 
   statusEl = document.createElement("p");
