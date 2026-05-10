@@ -117,10 +117,17 @@ body {
   border-color: rgba(47, 210, 168, 0.6);
 }
 
+.tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .panels {
   margin-top: 24px;
   display: grid;
   gap: 18px;
+  width: 100%;
+  min-width: 0;
 }
 
 .panel {
@@ -367,6 +374,39 @@ body {
   line-height: 1.45;
 }
 
+.tuner-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.tuner-canvas-wrap {
+  width: 100%;
+  min-height: min(36vh, 320px);
+  max-height: 420px;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  overflow: hidden;
+}
+
+.tuner-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  vertical-align: middle;
+  color: var(--text);
+}
+
+.tuner-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 #dft-compute {
   justify-self: start;
 }
@@ -406,5 +446,20 @@ body {
   .tab {
     width: 100%;
     text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-mark {
+    font-size: 26px;
+  }
+
+  .panel {
+    padding: 18px 16px 20px;
+  }
+
+  .tabs {
+    gap: 8px;
+    padding: 12px;
   }
 }

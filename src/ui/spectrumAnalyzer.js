@@ -1,4 +1,4 @@
-import { initAudio, createAnalyser } from "../audioEngine.js";
+import { initAudio, createAnalyser, resumeSharedAudioContext } from "../audioEngine.js";
 import {
   drawSpectrumFrame,
   resetSpectrumWaterfall,
@@ -161,9 +161,13 @@ function applyControlsFromUi(selFft, selScale, selMode) {
 
 /**
  * @param {HTMLElement} root
+ * @returns {() => void}
  */
-function mountUi(root) {
+function mountSpectrumUi(root) {
   root.classList.add("spectrum-analyzer");
+
+  const ac = new AbortController();
+  const { signal } = ac;
 
   const toolbar = document.createElement("div");
   toolbar.className = "spectrum-toolbar";
@@ -239,9 +243,9 @@ function mountUi(root) {
     applyControlsFromUi(selFft, selScale, selMode);
   };
 
-  selFft.addEventListener("change", onParamChange);
-  selScale.addEventListener("change", onParamChange);
-  selMode.addEventListener("change", onParamChange);
+  selFft.addEventListener("change", onParamChange, { signal });
+  selScale.addEventListener("change", onParamChange, { signal });
+  selMode.addEventListener("change", onParamChange, { signal });
 
   applyControlsFromUi(selFft, selScale, selMode);
 
@@ -252,15 +256,46 @@ function mountUi(root) {
   });
   ro.observe(canvasWrap);
 
-  document.addEventListener("webfft:start-audio", () => {
+  const onStartAudioEv = () => {
     void onStartAudio();
-  });
+  };
+  document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
+
+  return () => {
+    ac.abort();
+    ro.disconnect();
+    teardownAudio();
+    root.innerHTML = "";
+    canvasEl = null;
+    canvasWrap = null;
+    statusEl = null;
+  };
 }
 
-function mount() {
-  const host = document.getElementById("spectrum-analyzer");
-  if (!host) return;
-  mountUi(host);
-}
+/**
+ * @param {HTMLElement | null} root
+ * @returns {{ id: string, isRealtimeAudio: boolean, enter: () => void, exit: () => void }}
+ */
+export function createSpectrumAnalyzerMode(root) {
+  /** @type {(() => void) | null} */
+  let teardown = null;
 
-mount();
+  return {
+    id: "analyzer",
+    isRealtimeAudio: true,
+    enter() {
+      if (!root) return;
+      void resumeSharedAudioContext();
+      if (!teardown) {
+        teardown = mountSpectrumUi(root);
+      }
+      if (isAnalyzerPanelVisible() && analyser && canvasEl) {
+        startLoop();
+      }
+    },
+    exit() {
+      teardown?.();
+      teardown = null;
+    },
+  };
+}

@@ -1,6 +1,6 @@
 import * as dsp from "../dsp.js";
 import { hanning } from "../dsp/stft.js";
-import { ensureAudioContext, initAudio } from "../audioEngine.js";
+import { initAudio, resumeSharedAudioContext } from "../audioEngine.js";
 
 const FFT_N = 1024;
 const HOP = FFT_N >> 1;
@@ -195,9 +195,13 @@ function captureMonoPcm(ctx, micSrc, durationSec) {
 
 /**
  * @param {HTMLElement} root
+ * @returns {() => void}
  */
-export function initNoiseReduction(root) {
+function mountNoiseReduction(root) {
   injectStyles();
+  const ac = new AbortController();
+  const { signal } = ac;
+
   root.classList.add("nr-root");
   root.innerHTML = "";
 
@@ -389,29 +393,22 @@ export function initNoiseReduction(root) {
     recBtn.disabled = true;
   }
 
-  function onPanelHidden() {
-    if (isNoisePanelVisible()) return;
-    teardownAll();
-    statusEl.textContent =
-      "Đã ngắt graph (rời tab Noise Reduction). Mở lại tab để thao tác.";
-  }
-
-  const panel = document.getElementById("panel-noise");
-  if (panel) {
-    const mo = new MutationObserver(() => onPanelHidden());
-    mo.observe(panel, { attributes: true, attributeFilter: ["hidden", "class"] });
-  }
-
-  alphaRange.addEventListener("input", () => {
+  alphaRange.addEventListener(
+    "input",
+    () => {
     const v = Number(alphaRange.value);
     alphaLabel.textContent = `Alpha (trừ phổ): ${v.toFixed(2)}`;
     reducerNode?.port.postMessage({
       type: "alpha",
       value: Math.max(ALPHA_MIN, Math.min(ALPHA_MAX, v)),
     });
-  });
+    },
+    { signal },
+  );
 
-  sampleBtn.addEventListener("click", async () => {
+  sampleBtn.addEventListener(
+    "click",
+    async () => {
     if (isSampling) return;
     isSampling = true;
     sampleBtn.disabled = true;
@@ -468,9 +465,13 @@ export function initNoiseReduction(root) {
       isSampling = false;
       sampleBtn.disabled = false;
     }
-  });
+    },
+    { signal },
+  );
 
-  toggleBtn.addEventListener("click", async () => {
+  toggleBtn.addEventListener(
+    "click",
+    async () => {
     if (!ctx || !micSrc || !monitorGain) {
       statusEl.textContent = "Chưa có audio: bấm Sample Noise hoặc Start Audio.";
       return;
@@ -499,9 +500,13 @@ export function initNoiseReduction(root) {
       statusEl.textContent = `Không khởi tạo worklet: ${msg}`;
       wireBypassMonitoring();
     }
-  });
+    },
+    { signal },
+  );
 
-  recBtn.addEventListener("click", async () => {
+  recBtn.addEventListener(
+    "click",
+    async () => {
     if (!ctx || !monitorGain || isRecording) return;
     isRecording = true;
     recBtn.disabled = true;
@@ -583,50 +588,82 @@ export function initNoiseReduction(root) {
         mediaRecorder.stop();
       }
     }, 5000);
-  });
+  },
+  { signal },
+);
 
-  document.addEventListener("webfft:start-audio", () => {
-    if (!isNoisePanelVisible()) return;
-    void (async () => {
-      try {
-        const { context, stream } = await initAudio();
-        disconnectReducer();
-        if (micSrc) {
-          try {
-            micSrc.disconnect();
-          } catch {
-            /* ignore */
+  document.addEventListener(
+    "webfft:start-audio",
+    () => {
+      if (!isNoisePanelVisible()) return;
+      void (async () => {
+        try {
+          const { context, stream } = await initAudio();
+          disconnectReducer();
+          if (micSrc) {
+            try {
+              micSrc.disconnect();
+            } catch {
+              /* ignore */
+            }
+            micSrc = null;
           }
-          micSrc = null;
-        }
-        if (monitorGain) {
-          try {
-            monitorGain.disconnect();
-          } catch {
-            /* ignore */
+          if (monitorGain) {
+            try {
+              monitorGain.disconnect();
+            } catch {
+              /* ignore */
+            }
+            monitorGain = null;
           }
-          monitorGain = null;
+          ctx = context;
+          monitorGain = ctx.createGain();
+          monitorGain.gain.value = 0.85;
+          monitorGain.connect(ctx.destination);
+          micSrc = ctx.createMediaStreamSource(stream);
+          micSrc.connect(monitorGain);
+          statusEl.textContent = `Audio sẵn sàng (${Math.round(ctx.sampleRate)} Hz). Sample nhiễu rồi bật khử nhiễu.`;
+          recBtn.disabled = !noiseProfile;
+          if (nrEnabled && noiseProfile) {
+            await wireNoiseReduction();
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          statusEl.textContent = `Start audio: ${msg}`;
         }
-        ctx = context;
-        monitorGain = ctx.createGain();
-        monitorGain.gain.value = 0.85;
-        monitorGain.connect(ctx.destination);
-        micSrc = ctx.createMediaStreamSource(stream);
-        micSrc.connect(monitorGain);
-        statusEl.textContent = `Audio sẵn sàng (${Math.round(ctx.sampleRate)} Hz). Sample nhiễu rồi bật khử nhiễu.`;
-        recBtn.disabled = !noiseProfile;
-        if (nrEnabled && noiseProfile) {
-          await wireNoiseReduction();
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        statusEl.textContent = `Start audio: ${msg}`;
-      }
-    })();
-  });
+      })();
+    },
+    { signal },
+  );
+
+  return () => {
+    teardownAll();
+    ac.abort();
+    root.innerHTML = "";
+  };
 }
 
-const host = document.getElementById("noise-reduction");
-if (host) {
-  initNoiseReduction(host);
+/**
+ * @param {HTMLElement | null} root
+ * @returns {{ id: string, isRealtimeAudio: boolean, enter: () => void, exit: () => void }}
+ */
+export function createNoiseReductionMode(root) {
+  /** @type {(() => void) | null} */
+  let teardown = null;
+
+  return {
+    id: "noise",
+    isRealtimeAudio: true,
+    enter() {
+      if (!root) return;
+      void resumeSharedAudioContext();
+      if (!teardown) {
+        teardown = mountNoiseReduction(root);
+      }
+    },
+    exit() {
+      teardown?.();
+      teardown = null;
+    },
+  };
 }

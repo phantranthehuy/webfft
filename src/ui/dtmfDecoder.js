@@ -1,4 +1,8 @@
-import { ensureAudioContext, initAudio } from "../audioEngine.js";
+import {
+  ensureAudioContext,
+  initAudio,
+  resumeSharedAudioContext,
+} from "../audioEngine.js";
 import { fft } from "../dsp/fft.js";
 import { hanning } from "../dsp/stft.js";
 
@@ -211,9 +215,13 @@ function makeSelect(label, ariaLabel) {
 
 /**
  * @param {HTMLElement} root
+ * @returns {() => void}
  */
-export function initDtmfDecoder(root) {
+function mountDtmfDecoder(root) {
   injectStyles();
+  const ac = new AbortController();
+  const { signal } = ac;
+
   root.classList.add("dtmf-root");
   root.innerHTML = "";
 
@@ -465,16 +473,28 @@ export function initDtmfDecoder(root) {
         "aria-label",
         `Phím DTMF ${digit}, ${ROW_HZ[r]} Hz và ${COL_HZ[c]} Hz`,
       );
-      btn.addEventListener("pointerdown", () => btn.classList.add("is-pressed"));
-      btn.addEventListener("pointerup", () =>
-        btn.classList.remove("is-pressed"),
+      btn.addEventListener(
+        "pointerdown",
+        () => btn.classList.add("is-pressed"),
+        { signal },
       );
-      btn.addEventListener("pointerleave", () =>
-        btn.classList.remove("is-pressed"),
+      btn.addEventListener(
+        "pointerup",
+        () => btn.classList.remove("is-pressed"),
+        { signal },
       );
-      btn.addEventListener("click", () => {
-        playDtmf(ROW_HZ[r], COL_HZ[c]);
-      });
+      btn.addEventListener(
+        "pointerleave",
+        () => btn.classList.remove("is-pressed"),
+        { signal },
+      );
+      btn.addEventListener(
+        "click",
+        () => {
+          playDtmf(ROW_HZ[r], COL_HZ[c]);
+        },
+        { signal },
+      );
       keypad.appendChild(btn);
     }
   }
@@ -483,46 +503,53 @@ export function initDtmfDecoder(root) {
   root.setAttribute("role", "region");
   root.setAttribute("aria-label", "DTMF Decoder");
 
-  document.addEventListener("keydown", (ev) => {
-    if (!isDtmfPanelVisible()) return;
-    const ae = document.activeElement;
-    if (
-      ae instanceof HTMLInputElement ||
-      ae instanceof HTMLTextAreaElement ||
-      ae instanceof HTMLSelectElement
-    ) {
-      return;
-    }
-    const map = {
-      Digit1: [0, 0],
-      Digit2: [0, 1],
-      Digit3: [0, 2],
-      KeyA: [0, 3],
-      Digit4: [1, 0],
-      Digit5: [1, 1],
-      Digit6: [1, 2],
-      KeyB: [1, 3],
-      Digit7: [2, 0],
-      Digit8: [2, 1],
-      Digit9: [2, 2],
-      KeyC: [2, 3],
-      Asterisk: [3, 0],
-      Digit0: [3, 1],
-      Minus: [3, 0],
-      Slash: [3, 2],
-      KeyD: [3, 3],
-    };
-    const idx = map[/** @type {keyof typeof map} */ (ev.code)];
-    if (!idx || isMicSource()) return;
-    ev.preventDefault();
-    const [r, c] = idx;
-    playDtmf(ROW_HZ[r], COL_HZ[c]);
-    const b = keypad.querySelectorAll(".dtmf-key")[r * 4 + c];
-    if (b instanceof HTMLElement) {
-      b.classList.add("is-pressed");
-      setTimeout(() => b.classList.remove("is-pressed"), 120);
-    }
-  });
+  document.addEventListener(
+    "keydown",
+    (ev) => {
+      if (!isDtmfPanelVisible()) return;
+      const ae = document.activeElement;
+      if (
+        ae instanceof HTMLInputElement ||
+        ae instanceof HTMLTextAreaElement ||
+        ae instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      const map = {
+        Digit1: [0, 0],
+        Digit2: [0, 1],
+        Digit3: [0, 2],
+        KeyA: [0, 3],
+        Digit4: [1, 0],
+        Digit5: [1, 1],
+        Digit6: [1, 2],
+        KeyB: [1, 3],
+        Digit7: [2, 0],
+        Digit8: [2, 1],
+        Digit9: [2, 2],
+        KeyC: [2, 3],
+        Asterisk: [3, 0],
+        Digit0: [3, 1],
+        Minus: [3, 0],
+        Slash: [3, 2],
+        KeyD: [3, 3],
+      };
+      const idx = map[/** @type {keyof typeof map} */ (ev.code)];
+      if (!idx || isMicSource()) return;
+      ev.preventDefault();
+      const [rk, ck] = idx;
+      playDtmf(ROW_HZ[rk], COL_HZ[ck]);
+      const b = keypad.querySelectorAll(".dtmf-key")[rk * 4 + ck];
+      if (b instanceof HTMLElement) {
+        b.classList.add("is-pressed");
+        setTimeout(() => {
+          if (signal.aborted) return;
+          b.classList.remove("is-pressed");
+        }, 120);
+      }
+    },
+    { signal },
+  );
 
   async function onMicClick() {
     micBtn.disabled = true;
@@ -542,45 +569,98 @@ export function initDtmfDecoder(root) {
     }
   }
 
-  micBtn.addEventListener("click", () => {
-    void onMicClick();
-  });
-
-  srcSel.addEventListener("change", () => {
-    lastEmitAt = 0;
-    stableDigit = null;
-    stableCount = 0;
-    if (srcSel.value === "internal") {
-      wireInternalTapOnly();
-      statusEl.textContent =
-        "Nội bộ: bấm phím để phát tone và đọc FFT trên luồng synthesizer.";
-    } else {
-      statusEl.textContent =
-        "Đang mở micro… (hoặc bấm «Bật micro» / Start Audio trên header)";
+  micBtn.addEventListener(
+    "click",
+    () => {
       void onMicClick();
-    }
-  });
+    },
+    { signal },
+  );
 
-  clearBtn.addEventListener("click", () => {
-    history = "";
-    histEl.textContent = "(trống)";
-    lastEmitAt = 0;
-    stableDigit = null;
-    stableCount = 0;
-  });
+  srcSel.addEventListener(
+    "change",
+    () => {
+      lastEmitAt = 0;
+      stableDigit = null;
+      stableCount = 0;
+      if (srcSel.value === "internal") {
+        wireInternalTapOnly();
+        statusEl.textContent =
+          "Nội bộ: bấm phím để phát tone và đọc FFT trên luồng synthesizer.";
+      } else {
+        statusEl.textContent =
+          "Đang mở micro… (hoặc bấm «Bật micro» / Start Audio trên header)";
+        void onMicClick();
+      }
+    },
+    { signal },
+  );
+
+  clearBtn.addEventListener(
+    "click",
+    () => {
+      history = "";
+      histEl.textContent = "(trống)";
+      lastEmitAt = 0;
+      stableDigit = null;
+      stableCount = 0;
+    },
+    { signal },
+  );
 
   wireInternalTapOnly();
   statusEl.textContent =
     "Nội bộ: bấm phím để phát tone; FFT (dsp) trên AnalyserNode. Hoặc bật micro.";
   startLoop();
 
-  document.addEventListener("webfft:start-audio", () => {
-    if (srcSel.value !== "mic") return;
-    void onMicClick();
-  });
+  document.addEventListener(
+    "webfft:start-audio",
+    () => {
+      if (srcSel.value !== "mic") return;
+      void onMicClick();
+    },
+    { signal },
+  );
+
+  return () => {
+    stopLoop();
+    disconnectMic();
+    for (const n of [analyser, tapGain, outGain]) {
+      try {
+        n?.disconnect();
+      } catch {
+        /* ignore */
+      }
+    }
+    analyser = null;
+    tapGain = null;
+    outGain = null;
+    ac.abort();
+    root.innerHTML = "";
+  };
 }
 
-const host = document.getElementById("dtmf-decoder");
-if (host) {
-  initDtmfDecoder(host);
+/**
+ * @param {HTMLElement | null} root
+ * @returns {{ id: string, isRealtimeAudio: boolean, enter: () => void, exit: () => void }}
+ */
+export function createDtmfDecoderMode(root) {
+  /** @type {(() => void) | null} */
+  let teardown = null;
+
+  return {
+    id: "dtmf",
+    isRealtimeAudio: true,
+    enter() {
+      if (!root) return;
+      void resumeSharedAudioContext();
+      if (!teardown) {
+        teardown = mountDtmfDecoder(root);
+      }
+    },
+    exit() {
+      teardown?.();
+      teardown = null;
+    },
+  };
 }

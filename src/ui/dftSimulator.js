@@ -300,11 +300,15 @@ function clearHost(host) {
   while (host.firstChild) host.removeChild(host.firstChild);
 }
 
-function initDftSimulator() {
-  const root = document.getElementById("dft-simulator");
-  if (!root) return;
-
+/**
+ * @param {HTMLElement} root
+ * @returns {() => void}
+ */
+function mountDftSimulator(root) {
   root.innerHTML = "";
+
+  const ac = new AbortController();
+  const { signal } = ac;
 
   const grid = document.createElement("div");
   grid.className = "dft-grid";
@@ -432,12 +436,18 @@ function initDftSimulator() {
 
   fillNOptions();
 
-  selAlgo.addEventListener("change", () => {
-    fillNOptions();
-    selFft.disabled = selAlgo.value !== "FFT";
-  });
+  selAlgo.addEventListener(
+    "change",
+    () => {
+      fillNOptions();
+      selFft.disabled = selAlgo.value !== "FFT";
+    },
+    { signal },
+  );
 
-  btn.addEventListener("click", () => {
+  btn.addEventListener(
+    "click",
+    () => {
     errBox.hidden = true;
     errBox.textContent = "";
     clearHost(twHost);
@@ -450,7 +460,7 @@ function initDftSimulator() {
       const N = Number(selN.value);
       const algo = selAlgo.value;
       const fftKind = selFft.value;
-      const signal = parseSignal(ta.value, N);
+      const samples = parseSignal(ta.value, N);
 
       const matrix = buildTwiddleMatrix(N);
       twHost.appendChild(renderTwiddleTable(matrix));
@@ -459,7 +469,7 @@ function initDftSimulator() {
       let finalSpectrum;
 
       if (algo === "DFT") {
-        const detail = dftSteps(signal);
+        const detail = dftSteps(samples);
         for (const block of detail) {
           const blockEl = document.createElement("div");
           blockEl.className = "dft-step-block";
@@ -477,11 +487,11 @@ function initDftSimulator() {
           blockEl.appendChild(ol);
           stepsHost.appendChild(blockEl);
         }
-        finalSpectrum = dft(signal);
+        finalSpectrum = dft(samples);
         resHost.appendChild(renderSpectrumRow(finalSpectrum));
 
         if (isPowerOfTwo(N)) {
-          refSpectrum = fft(signal);
+          refSpectrum = fft(samples);
           const err = maxAbsDiff(finalSpectrum, refSpectrum);
           cmpHost.appendChild(
             document.createTextNode(
@@ -511,7 +521,7 @@ function initDftSimulator() {
           throw new Error("FFT radix-2 yêu cầu N là lũy thừa của 2.");
         }
         const stages =
-          fftKind === "DIT" ? simulateDit(signal, N) : simulateDif(signal, N);
+          fftKind === "DIT" ? simulateDit(samples, N) : simulateDif(samples, N);
         for (const st of stages) {
           const box = document.createElement("div");
           box.className = "dft-step-block";
@@ -525,11 +535,11 @@ function initDftSimulator() {
         finalSpectrum = stages[stages.length - 1].values;
         resHost.appendChild(renderSpectrumRow(finalSpectrum));
 
-        refSpectrum = fft(signal);
+        refSpectrum = fft(samples);
         const err = maxAbsDiff(finalSpectrum, refSpectrum);
         cmpHost.appendChild(
           document.createTextNode(
-            `Sai số cực đại so với fft(signal): ${err.toExponential(4)} (${fftKind} mô phỏng vs fft.js DIT).`,
+            `Sai số cực đại so với fft(samples): ${err.toExponential(4)} (${fftKind} mô phỏng vs fft.js DIT).`,
           ),
         );
 
@@ -541,7 +551,37 @@ function initDftSimulator() {
       errBox.textContent =
         e instanceof Error ? e.message : "Đã xảy ra lỗi không xác định.";
     }
-  });
+    },
+    { signal },
+  );
+
+  return () => {
+    ac.abort();
+    root.innerHTML = "";
+  };
 }
 
-initDftSimulator();
+/**
+ * Chế độ DFT/FFT: không dùng AudioContext real-time.
+ * @returns {{ id: string, isRealtimeAudio: boolean, enter: () => void, exit: () => void }}
+ */
+export function createDftSimulatorMode() {
+  /** @type {(() => void) | null} */
+  let teardown = null;
+
+  return {
+    id: "simulator",
+    isRealtimeAudio: false,
+    enter() {
+      const root = document.getElementById("dft-simulator");
+      if (!root) return;
+      if (!teardown) {
+        teardown = mountDftSimulator(root);
+      }
+    },
+    exit() {
+      teardown?.();
+      teardown = null;
+    },
+  };
+}

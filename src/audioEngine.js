@@ -163,6 +163,41 @@ export function createAnalyser(fftSize = 2048) {
  *   disconnectAll: () => void,
  * }}
  */
+/**
+ * @returns {AudioContext | null}
+ */
+export function getSharedAudioContext() {
+  return sharedContext;
+}
+
+/**
+ * Tạm dừng context dùng chung (tiết kiệm CPU khi không có tab real-time).
+ * @returns {Promise<void>}
+ */
+export async function suspendSharedAudioContext() {
+  if (!sharedContext || sharedContext.state !== 'running') return;
+  try {
+    await sharedContext.suspend();
+  } catch {
+    /* ignore */
+  }
+  syncResumeButtonVisibility(sharedContext);
+}
+
+/**
+ * Khôi phục context (khi vào tab cần audio).
+ * @returns {Promise<void>}
+ */
+export async function resumeSharedAudioContext() {
+  if (!sharedContext || sharedContext.state !== 'suspended') return;
+  try {
+    await sharedContext.resume();
+  } catch {
+    /* ignore */
+  }
+  syncResumeButtonVisibility(sharedContext);
+}
+
 export function createAudioGraph(context, stream) {
   const input = context.createMediaStreamSource(stream);
   const masterGain = context.createGain();
