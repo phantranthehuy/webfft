@@ -3,13 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WebFFT - Mô phỏng DFT/FFT và xử lý âm thanh thời gian thực</title>
+    <title>Mô phỏng FFT và ứng dụng xử lý âm thanh thời gian thực</title>
     <meta
       name="description"
       content="Công cụ minh họa DFT, FFT radix-2 và thử nghiệm âm thanh trên trình duyệt; xử lý cục bộ, không gửi âm thanh lên máy chủ."
     />
     <meta name="theme-color" content="#121218" />
     <link rel="manifest" href="manifest.json" />
+    <link
+      rel="icon"
+      href="assets/icons/icon-192.png"
+      sizes="192x192"
+      type="image/png"
+    />
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
@@ -21,17 +28,22 @@
       src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
       crossorigin="anonymous"
     ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body>
     <div class="app">
       <header class="app-header">
         <div class="brand">
-          <span class="brand-mark">WebFFT</span>
-          <span class="brand-subtitle">Phòng thí nghiệm DFT và âm thanh thời gian thực</span>
+          <span class="brand-mark">Mô phỏng FFT và ứng dụng xử lý âm thanh thời gian thực</span>
+          <span class="brand-subtitle">Nhóm thực hiện: DSP_L02_07</span>
         </div>
       </header>
 
-      <nav class="tabs" role="tablist" aria-label="Các chế độ WebFFT">
+      <nav class="tabs" role="tablist" aria-label="Các chế độ">
         <button
           class="tab is-active"
           role="tab"
@@ -85,7 +97,7 @@
           data-tab="tuner"
           type="button"
         >
-          Lên dây nhạc cụ
+          Tunner
         </button>
       </nav>
 
@@ -100,10 +112,10 @@
             <h2>Mô phỏng DFT và FFT</h2>
             <p class="panel-tagline">Xem công thức DFT, ma trận twiddle và các bước FFT radix‑2.</p>
             <p class="panel-intro">
-              <strong>DFT</strong> biến đổi chuỗi mẫu miền thời gian thành các hệ số phức X[k] theo tần số rời rạc.
-              <strong>FFT</strong> là cách tính nhanh DFT khi độ dài N là lũy thừa của 2; hai biến thể hay gặp là
+              <strong>DFT</strong> biến đổi chuỗi mẫu miền thời gian thành các hệ số phức \(X[k]\) theo tần số rời rạc.
+              <strong>FFT</strong> là cách tính nhanh DFT khi độ dài \(N\) là lũy thừa của 2; hai biến thể hay gặp là
               <strong>DIT</strong> (Decimation-In-Time) và <strong>DIF</strong> (Decimation-In-Frequency), ghép bằng các phép «bướm» và hệ số pha
-              W<sub>N</sub><sup>kn</sup>. Tab này minh họa toán học và sơ đồ để so sánh với thư viện dsp trong dự án.
+              \(W_N^{kn}\). Tab này minh họa toán học và sơ đồ để so sánh với thư viện dsp trong dự án.
             </p>
           </div>
           <div class="panel-body">
@@ -122,8 +134,8 @@
             <h2>Phân tích phổ thời gian thực</h2>
             <p class="panel-tagline">Phổ tần số và waterfall từ micro.</p>
             <p class="panel-intro">
-              Tín hiệu âm thanh được chia thành các khung ngắn; mỗi khung đưa qua <strong>FFT</strong> (kích thước fftSize) để được phân bố biên độ theo tần số.
-              Trục ngang là tần số (Hz), trục dọc có thể là <strong>dB</strong> (log) hoặc biên độ tuyến tính. Gọi cửa sổ (Hann, Hamming, …) giảm rò phổ giữa các khung;
+              Tín hiệu âm thanh được chia thành các khung ngắn; mỗi khung đưa qua <strong>FFT</strong> (kích thước \(\text{fftSize}\)) để được phân bố biên độ theo tần số.
+              Trục ngang là tần số (\(\mathrm{Hz}\)), trục dọc có thể là <strong>dB</strong> (\(\mathrm{dB}\), log) hoặc biên độ tuyến tính. Gọi cửa sổ (\(\mathrm{Hann}\), \(\mathrm{Hamming}\), …) giảm rò phổ giữa các khung;
               đường overlay dsp là phổ tham chiếu tính bằng cùng cửa sổ trong code.
             </p>
           </div>
@@ -143,8 +155,8 @@
             <h2>Giải mã DTMF</h2>
             <p class="panel-tagline">Phát và nhận dạng tone điện thoại (Dual-Tone Multi-Frequency).</p>
             <p class="panel-intro">
-              <strong>DTMF</strong> dùng một tần thấp (hàng) và một tần cao (cột) đồng thời để mã hoá phím (ITU‑T Q.23). Ta dùng
-              <strong>FFT</strong> trên khung có cửa sổ Hann để tìm hai đỉnh phổ khớp dải tần quy định; so sánh biên độ để loại trường hợp chỉ có một tone mạnh.
+              <strong>DTMF</strong> dùng một tần thấp (hàng) và một tần cao (cột) đồng thời để mã hoá phím (\(\text{ITU-T Q.23}\)). Ta dùng
+              <strong>FFT</strong> trên khung có cửa sổ \(\mathrm{Hann}\) để tìm hai đỉnh phổ khớp dải tần quy định; so sánh biên độ để loại trường hợp chỉ có một tone mạnh.
               Có thể phát tone nội bộ (oscillator) hoặc thu qua micro — khi bật micro, phần phím ảo phát nội bộ bị khóa để tránh trộn nguồn.
             </p>
           </div>
@@ -164,9 +176,9 @@
             <h2>Khử nhiễu theo phổ</h2>
             <p class="panel-tagline">Minh hoạ trừ phổ (spectral subtraction).</p>
             <p class="panel-intro">
-              Trước hết ghi một đoạn chỉ có <strong>nền nhiễu</strong> để ước lượng phổ biên độ trung bình |N[k]|. Khi có tiếng nói hoặc tín hiệu mong muốn,
-              ta lấy phổ ngắn hạn |Y[k]| và giảm đi α·|N[k]| (tham số alpha điều chỉnh độ «trừ»). Ý tưởng: nhiễu gần cố định theo phổ có thể trừ đi;
-              thực tế cần floor và overlap‑add để giảm tai tiếng âm nhạc — đây là bản demo đơn giản trên AudioWorklet (khung 1024 mẫu).
+              Trước hết ghi một đoạn chỉ có <strong>nền nhiễu</strong> để ước lượng phổ biên độ trung bình \(|N[k]|\). Khi có tiếng nói hoặc tín hiệu mong muốn,
+              ta lấy phổ ngắn hạn \(|Y[k]|\) và giảm đi \(\alpha\cdot|N[k]|\) (tham số alpha điều chỉnh độ «trừ»). Ý tưởng: nhiễu gần cố định theo phổ có thể trừ đi;
+              thực tế cần floor và overlap‑add để giảm tai tiếng âm nhạc — đây là bản demo đơn giản trên AudioWorklet (khung \(1024\) mẫu).
             </p>
           </div>
           <div class="panel-body">
@@ -182,11 +194,11 @@
           hidden
         >
           <div class="panel-header">
-            <h2>Lên dây nhạc cụ</h2>
+            <h2>Tunner</h2>
             <p class="panel-tagline">Ước lượng cao độ (Hz), nốt và sai lệch cents.</p>
             <p class="panel-intro">
-              <strong>Cao độ</strong> là tần số dao động cơ bản f₀ của âm thanh gần điều hoà. Sau khi đo f₀, ta map sang thang 12 nốt (chuẩn A4 = 440 Hz) và hiển thị
-              <strong>cents</strong> — đơn vị nhỏ trong nhạc lý (1200 cents = một quãng tám). Hai phương pháp: «đỉnh phổ» (FFT + chỉnh đỉnh parabol) hoặc
+              <strong>Cao độ</strong> là tần số dao động cơ bản \(f_0\) của âm thanh gần điều hoà. Sau khi đo \(f_0\), ta map sang thang 12 nốt (chuẩn \(\mathrm{A4} = 440\,\mathrm{Hz}\)) và hiển thị
+              <strong>cents</strong> — đơn vị nhỏ trong nhạc lý (\(1200\) cents \(=\) một quãng tám). Hai phương pháp: «đỉnh phổ» (\(\mathrm{FFT}\) + chỉnh đỉnh parabol) hoặc
               <strong>YIN</strong> trong miền thời gian, thích hợp nốt đơn, ít hài âm.
             </p>
           </div>
@@ -197,7 +209,7 @@
       </main>
 
       <footer class="app-footer">
-        <span>Âm thanh được xử lý cục bộ trên trình duyệt của bạn.</span>
+        <span>Âm thanh được xử lý cục bộ trên trình duyệt.</span>
       </footer>
     </div>
 

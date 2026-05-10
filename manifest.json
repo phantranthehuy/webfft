@@ -1,6 +1,6 @@
 {
-  "name": "WebFFT",
-  "short_name": "WebFFT",
+  "name": "Công cụ mô phỏng giải thuật biến đổi Fourier rời rạc và ứng dụng trong xử lý tín hiệu âm thanh thời gian thực",
+  "short_name": "Mô phỏng DFT",
   "description": "Mô phỏng DFT/FFT và phòng thí nghiệm âm thanh thời gian thực trên web",
   "start_url": "./",
   "scope": "./",

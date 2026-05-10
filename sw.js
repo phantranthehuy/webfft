@@ -1,11 +1,12 @@
 /** @type {string} */
-const CACHE_NAME = "webfft-static-v7";
+const CACHE_NAME = "webfft-static-v13";
 
 /** CDN cố định (trùng URL import trong mã) để offline/PWA vẫn tải D3 + KaTeX sau khi cài đặt cache. */
 const CDN_ASSETS = [
   "https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm",
   "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js",
   "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css",
+  "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js",
 ];
 
 /** Danh sách tài nguyên tĩnh (HTML, CSS, JS, icon, manifest) — đường dẫn tương đối file sw.js. */
@@ -38,6 +39,7 @@ const STATIC_ASSETS = [
   "./src/ui/tuner.js",
   "./src/utils/domHelpers.js",
   "./src/utils/format.js",
+  "./src/utils/mathTypeset.js",
   "./src/visualization/spectrumCanvas.js",
   "./src/visualization/tunerDisplay.js",
   "./src/visualization/butterflySvg.js",

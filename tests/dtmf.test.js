@@ -129,7 +129,10 @@ function decodeDtmfFromTimeDomain(timeDomain, sr) {
   }
 
   if (!bestRow || !bestCol) {
-    return { digit: null, detail: "Không đủ hai đỉnh trong dung sai ±1.5%" };
+    return {
+      digit: null,
+      detail: "Chưa nhận đủ hai tone DTMF (một hàng + một cột).",
+    };
   }
 
   const ratio =
