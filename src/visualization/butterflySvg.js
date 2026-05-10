@@ -1,4 +1,5 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm";
+import { katexHtml } from "../utils/mathTypeset.js";
 
 /**
  * @typedef {{ topWire: number, bottomWire: number, twiddleReal: number, twiddleImag: number }} Butterfly
@@ -466,13 +467,16 @@ export function drawButterfly(containerId, data, opts = {}) {
         g.selectAll(".bf-x-diag").classed("is-dim", false);
 
         tooltip.style.display = "block";
-        const wNk = `W<sub>${N}</sub><sup>${kInt}</sup>`;
+        const wTex = `W_{${N}}^{${kInt}}`;
+        const eqTop = katexHtml(`A^{\\prime} = A + ${wTex} \\cdot B`);
+        const eqBot = katexHtml(`B^{\\prime} = A - ${wTex} \\cdot B`);
+        const wApprox = katexHtml(wTex);
         tooltip.innerHTML = [
           `<div style="font-weight:600;margin-bottom:6px;color:#b8fce9;">Phép bướm · giai đoạn ${sIdx + 1}/${numStages}</div>`,
           `<div>Dây trên chỉ số <code>${bf.topWire}</code>, dây dưới <code>${bf.bottomWire}</code></div>`,
-          `<div style="margin-top:8px;"><code>A′ = A + ${wNk} · B</code></div>`,
-          `<div><code>B′ = A − ${wNk} · B</code></div>`,
-          `<div style="margin-top:8px;color:#9fb0bf;font-size:12px;">W<sub>${N}</sub><sup>${kInt}</sup> ≈ ${twStr}</div>`,
+          `<div style="margin-top:8px;">${eqTop}</div>`,
+          `<div>${eqBot}</div>`,
+          `<div style="margin-top:8px;color:#9fb0bf;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>${wApprox}</span><span>≈</span><span style="font-family:ui-monospace,monospace">${twStr}</span></div>`,
         ].join("");
 
         const pad = 12;

@@ -1,6 +1,7 @@
 import { dft, fft, Complex } from "../dsp.js";
 import { generateButterflyData } from "../dsp/butterflyData.js";
 import { renderButterflySvg } from "../visualization/butterflySvg.js";
+import { typesetMath } from "../utils/mathTypeset.js";
 
 const TWO_PI = 2 * Math.PI;
 
@@ -331,7 +332,7 @@ function renderTwiddleTable(matrix) {
   const thead = document.createElement("thead");
   const hr = document.createElement("tr");
   const corner = document.createElement("th");
-  corner.textContent = "k \\ n";
+  corner.innerHTML = "\\(k \\backslash n\\)";
   hr.appendChild(corner);
   for (let n = 0; n < matrix[0].length; n++) {
     const th = document.createElement("th");
@@ -652,16 +653,17 @@ function mountDftSimulator(root) {
     if (isPowerOfTwo(N)) {
       const refSpectrum = allReal ? fft(reals) : dftFromComplex(seq0);
       const err = maxAbsDiff(finalSpectrum, refSpectrum);
-      const refLabel = allReal
+      const refHtml = allReal
         ? "FFT radix‑2 trong dsp (chuỗi thực)"
-        : "DFT đầy đủ O(N²), tín hiệu phức (tham chiếu)";
-      cmpHost.appendChild(
-        document.createTextNode(
-          algo === "DFT"
-            ? `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (DFT mô phỏng so với tham chiếu).`
-            : `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (mô phỏng ${fftKind} so với tham chiếu).`,
-        ),
-      );
+        : "DFT đầy đủ \\(O(N^2)\\), tín hiệu phức (tham chiếu)";
+      const p = document.createElement("p");
+      p.className = "dft-cmp-summary";
+      p.innerHTML =
+        algo === "DFT"
+          ? `Sai số cực đại so với ${refHtml}: ${err.toExponential(4)} (DFT mô phỏng so với tham chiếu).`
+          : `Sai số cực đại so với ${refHtml}: ${err.toExponential(4)} (mô phỏng ${fftKind} so với tham chiếu).`;
+      cmpHost.appendChild(p);
+      typesetMath(p);
     } else {
       cmpHost.appendChild(
         document.createTextNode(
@@ -797,11 +799,12 @@ function mountDftSimulator(root) {
   secTw.hidden = true;
   const secTwTitle = document.createElement("h3");
   secTwTitle.className = "dft-section-title";
-  secTwTitle.innerHTML = `Ma trận twiddle W<sub>N</sub><sup>kn</sup>`;
+  secTwTitle.innerHTML =
+    "Ma trận twiddle \\(W_N^{kn}\\)";
   const secTwIntro = document.createElement("p");
   secTwIntro.className = "dft-section-intro";
-  secTwIntro.textContent =
-    "Mỗi ô (k, n) là hệ số pha W_N^{kn} trong định nghĩa DFT: X[k] = Σ_n x[n]·W_N^{kn}. Ma trận giúp thấy rõ mối quan hệ giữa chỉ số tần k và chỉ số thời gian n trước khi cộng dồn.";
+  secTwIntro.innerHTML =
+    "Mỗi ô \\((k,n)\\) là hệ số pha \\(W_N^{kn}\\) trong định nghĩa DFT: \\(X[k]=\\sum_n x[n]\\,W_N^{kn}\\). Ma trận giúp thấy rõ mối quan hệ giữa chỉ số tần \\(k\\) và chỉ số thời gian \\(n\\) trước khi cộng dồn.";
   const twHost = document.createElement("div");
   twHost.className = "dft-scroll";
   secTw.append(secTwTitle, secTwIntro, twHost);
@@ -814,8 +817,8 @@ function mountDftSimulator(root) {
   secStepsTitle.textContent = "Từng bước";
   const secStepsIntro = document.createElement("p");
   secStepsIntro.className = "dft-section-intro";
-  secStepsIntro.textContent =
-    "Chế độ DFT: liệt kê các đóng góp từng mẫu x[n] cho X[k], có thể duyệt k từng bước. Chế độ FFT: hiển thị giá trị sau hoán vị bit-reverse (nếu có) và sau mỗi giai đoạn DIT hoặc DIF.";
+  secStepsIntro.innerHTML =
+    "Chế độ DFT: liệt kê các đóng góp từng mẫu \\(x[n]\\) cho \\(X[k]\\), có thể duyệt \\(k\\) từng bước. Chế độ FFT: hiển thị giá trị sau hoán vị bit-reverse (nếu có) và sau mỗi giai đoạn DIT hoặc DIF.";
   const stepsHost = document.createElement("div");
   stepsHost.className = "dft-steps";
   secSteps.append(secStepsTitle, secStepsIntro, stepsHost);
@@ -828,8 +831,8 @@ function mountDftSimulator(root) {
   secResTitle.textContent = "Kết quả cuối";
   const secResIntro = document.createElement("p");
   secResIntro.className = "dft-section-intro";
-  secResIntro.textContent =
-    "Dãy X[0]…X[N−1] là phổ rời rạc của chuỗi đầu vào, cùng quy ước twiddle với module dsp của dự án.";
+  secResIntro.innerHTML =
+    "Dãy \\(X[0],\\ldots,X[N-1]\\) là phổ rời rạc của chuỗi đầu vào, cùng quy ước twiddle với module dsp của dự án.";
   const resHost = document.createElement("div");
   resHost.id = "dft-final";
   secRes.append(secResTitle, secResIntro, resHost);
@@ -842,8 +845,8 @@ function mountDftSimulator(root) {
   secCmpTitle.textContent = "So với FFT radix‑2 (dsp)";
   const secCmpIntro = document.createElement("p");
   secCmpIntro.className = "dft-section-intro";
-  secCmpIntro.textContent =
-    "Khi N là lũy thừa của 2, ta đối chiếu với kết quả tham chiếu trong dsp: FFT radix‑2 cho tín hiệu thực, hoặc DFT O(N²) đầy đủ cho tín hiệu phức. Sai số cực đại phản ánh sai khác làm tròn và đường đi tính toán.";
+  secCmpIntro.innerHTML =
+    "Khi \\(N\\) là lũy thừa của \\(2\\), ta đối chiếu với kết quả tham chiếu trong dsp: FFT radix‑2 cho tín hiệu thực, hoặc DFT \\(O(N^2)\\) đầy đủ cho tín hiệu phức. Sai số cực đại phản ánh sai khác làm tròn và đường đi tính toán.";
   const cmpHost = document.createElement("div");
   cmpHost.id = "dft-compare";
   secCmp.append(secCmpTitle, secCmpIntro, cmpHost);
@@ -856,8 +859,8 @@ function mountDftSimulator(root) {
   secBfTitle.textContent = "Sơ đồ bướm (SVG)";
   const secBfIntro = document.createElement("p");
   secBfIntro.className = "dft-section-intro";
-  secBfIntro.textContent =
-    "Minh họa kết nối các phép bướm radix‑2 và twiddle W_N^m giữa các nút. Khi chọn DFT ở trên, sơ đồ hiển thị dạng DIT chuẩn để đối chiếu lý thuyết FFT.";
+  secBfIntro.innerHTML =
+    "Minh họa kết nối các phép bướm radix‑2 và twiddle \\(W_N^m\\) giữa các nút. Khi chọn DFT ở trên, sơ đồ hiển thị dạng DIT chuẩn để đối chiếu lý thuyết FFT.";
   const bfHost = document.createElement("div");
   bfHost.className = "dft-butterfly-host";
   secBf.append(secBfTitle, secBfIntro, bfHost);
@@ -881,6 +884,7 @@ function mountDftSimulator(root) {
     secBf,
   );
   root.append(grid, kStepDock);
+  typesetMath(root);
 
   /** @param {number[]} opts đã sắp tăng dần */
   function nearestChoice(opts, v) {
@@ -982,7 +986,9 @@ function mountDftSimulator(root) {
       const allReal = isEffectivelyReal(seq0);
 
       const matrix = buildTwiddleMatrix(N);
-      twHost.appendChild(renderTwiddleTable(matrix));
+      const twTable = renderTwiddleTable(matrix);
+      twHost.appendChild(twTable);
+      typesetMath(twHost);
 
       /** @type {Complex[]} */
       let finalSpectrum;

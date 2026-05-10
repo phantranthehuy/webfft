@@ -10,6 +10,7 @@ import { createSpectrumAnalyzerMode } from "./ui/spectrumAnalyzer.js";
 import { createDtmfDecoderMode } from "./ui/dtmfDecoder.js";
 import { createNoiseReductionMode } from "./ui/noiseReduction.js";
 import { createTunerMode } from "./ui/tuner.js";
+import { typesetMath } from "./utils/mathTypeset.js";
 
 const TAB_ORDER = /** @type {const} */ ([
   "simulator",
@@ -154,7 +155,10 @@ function registerServiceWorker() {
 
 registerServiceWorker();
 
-void showTabWithShell(tabIdFromHash());
+void (async () => {
+  await showTabWithShell(tabIdFromHash());
+  typesetMath(document.body);
+})();
 
 /** Điều hướng bàn phím giữa các tab (mũi tên trái/phải). */
 document.addEventListener("keydown", (ev) => {

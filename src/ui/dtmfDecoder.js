@@ -54,8 +54,8 @@ function injectStyles() {
   style.id = "dtmf-decoder-styles";
   style.textContent = `
     .dtmf-root {
-      display: flex; flex-direction: column; gap: 20px; align-items: center;
-      width: 100%; max-width: 560px; margin-inline: auto;
+      display: flex; flex-direction: column; gap: 20px; align-items: stretch;
+      width: 100%; max-width: 100%; margin-inline: 0;
     }
     .dtmf-icon-btn {
       padding: 10px 14px; display: inline-flex; align-items: center; justify-content: center;
@@ -64,7 +64,7 @@ function injectStyles() {
     .dtmf-icon-btn img { display: block; width: 22px; height: 22px; }
     .dtmf-readout {
       background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px;
-      display: grid; gap: 8px; text-align: center; width: 100%; max-width: 440px;
+      display: grid; gap: 8px; text-align: center; width: 100%; max-width: 100%;
     }
     .dtmf-current { font-family: var(--font-ui, "Helvetica Neue", Helvetica, Arial, sans-serif); font-size: 42px; font-weight: 600; letter-spacing: 0.06em;
       color: var(--accent); min-height: 1.2em; text-align: center; }
@@ -98,11 +98,10 @@ function injectStyles() {
     .dtmf-key:hover { border-color: rgba(47, 210, 168, 0.45); }
     .dtmf-key:active, .dtmf-key.is-pressed { transform: scale(0.96); box-shadow: inset 0 0 0 2px rgba(47, 210, 168, 0.35); }
     .dtmf-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .dtmf-status { font-size: 13px; color: var(--muted); margin: 0; text-align: center; max-width: 42rem; }
-    .dtmf-help { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 0; max-width: 42rem; text-align: center; }
+    .dtmf-status { font-size: 13px; color: var(--muted); margin: 0; text-align: center; max-width: 100%; }
     .dtmf-pending-row {
       display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center;
-      width: 100%; max-width: 440px; margin-inline: auto;
+      width: 100%; max-width: 100%; margin-inline: 0;
     }
     .dtmf-pending-actions {
       display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center;
@@ -271,7 +270,10 @@ function decodeFrame(analyser, context) {
   }
 
   if (!bestRow || !bestCol) {
-    return { digit: null, detail: "Không đủ hai đỉnh trong dung sai ±1.5%" };
+    return {
+      digit: null,
+      detail: "Chưa nhận đủ hai tone DTMF (một hàng + một cột).",
+    };
   }
 
   const ratio =
@@ -330,11 +332,6 @@ function mountDtmfDecoder(root) {
   backspaceImg.height = 22;
   backspaceBtn.append(backspaceImg);
 
-  const helpEl = document.createElement("p");
-  helpEl.className = "dtmf-help";
-  helpEl.textContent =
-    "Micro tắt: nhập phím vào «Chờ phát», rồi «Phát tone» hoặc Enter — FFT đọc đường synth nội bộ. Micro bật: chỉ giải mã âm thanh ngoài; phím ảo và máy phát nội bộ khóa để không trộn nguồn. Lịch sử (khi micro tắt): bấm ký tự để phát lại một tone. Nhận dạng: FFT + cửa sổ Hann, so khớp 8 tần ITU‑T Q.23.";
-
   const readout = document.createElement("div");
   readout.className = "dtmf-readout";
   const currentEl = document.createElement("div");
@@ -387,7 +384,7 @@ function mountDtmfDecoder(root) {
   const statusEl = document.createElement("p");
   statusEl.className = "dtmf-status";
 
-  root.append(helpEl, readout, keypad, pendingRow, statusEl);
+  root.append(readout, keypad, pendingRow, statusEl);
 
   /** @type {AudioContext | null} */
   let audioCtx = null;
@@ -921,8 +918,7 @@ function mountDtmfDecoder(root) {
     wireInternalTapOnly();
   }
   refreshHistoryUi();
-  statusEl.textContent =
-    "Tắt micro: gõ phím vào «Chờ phát», «Phát tone» hoặc Enter. Bật micro: nhận DTMF từ bên ngoài.";
+  statusEl.textContent = "";
   startLoop();
 
   document.addEventListener(
@@ -938,8 +934,7 @@ function mountDtmfDecoder(root) {
     () => {
       disconnectMic();
       wireInternalTapOnly();
-      statusEl.textContent =
-        "Micro đã dừng — nhánh nội bộ đã bật lại. Thêm phím vào «Chờ phát» hoặc bật micro để thu.";
+      statusEl.textContent = "";
     },
     { signal },
   );
