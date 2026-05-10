@@ -40,6 +40,11 @@ const AMP_DIFF_DB_MAX = 10;
 const MIN_DETECT_GAP_MS = 80;
 const STABLE_FRAMES = 2;
 const TONE_MS = 100;
+/** Khoảng nghỉ giữa hai tone khi phát chuỗi (ms) */
+const TONE_GAP_MS = 80;
+const PENDING_MAX_LEN = 32;
+/** Giữ dòng meta sau tone / sau chuỗi (ms) */
+const PLAYBACK_STICKY_TAIL_MS = 420;
 const FFT_SIZE = 2048;
 
 /** @type {Float64Array | null} */
@@ -50,18 +55,37 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "dtmf-decoder-styles";
   style.textContent = `
-    .dtmf-root { display: flex; flex-direction: column; gap: 20px; max-width: 520px; }
-    .dtmf-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .dtmf-root {
+      display: flex; flex-direction: column; gap: 20px; align-items: center;
+      width: 100%; max-width: 560px; margin-inline: auto;
+    }
+    .dtmf-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; }
     .dtmf-toolbar label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
     .dtmf-toolbar select { background: var(--surface-strong); border: 1px solid var(--border); color: var(--text);
       padding: 8px 12px; border-radius: 10px; font-family: inherit; min-width: 180px; }
-    .dtmf-readout { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px;
-      display: grid; gap: 8px; }
+    .dtmf-icon-btn {
+      padding: 10px 14px; display: inline-flex; align-items: center; justify-content: center;
+      min-width: 44px; min-height: 44px;
+    }
+    .dtmf-icon-btn img { display: block; width: 22px; height: 22px; }
+    .dtmf-mode-toggle[aria-pressed="true"] {
+      border-color: rgba(47, 210, 168, 0.55);
+      box-shadow: 0 0 0 1px rgba(47, 210, 168, 0.22);
+    }
+    .dtmf-readout {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px;
+      display: grid; gap: 8px; text-align: center; width: 100%; max-width: 440px;
+    }
     .dtmf-current { font-family: "Space Grotesk", sans-serif; font-size: 42px; font-weight: 600; letter-spacing: 0.06em;
-      color: var(--accent); min-height: 1.2em; }
-    .dtmf-meta { font-size: 13px; color: var(--muted); }
-    .dtmf-history-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; justify-content: space-between; }
-    .dtmf-history { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; min-height: 1.4em; min-width: 0; }
+      color: var(--accent); min-height: 1.2em; text-align: center; }
+    .dtmf-meta { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.45; }
+    .dtmf-history-row {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center;
+    }
+    .dtmf-history {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
+      min-height: 1.4em; min-width: 0; max-width: 100%;
+    }
     .dtmf-history-empty { font-family: ui-monospace, monospace; font-size: 15px; color: var(--muted); }
     .dtmf-hist-char {
       font-family: ui-monospace, monospace; font-size: 15px; font-weight: 600;
@@ -71,7 +95,10 @@ function injectStyles() {
     }
     .dtmf-hist-char:hover { border-color: rgba(47, 210, 168, 0.45); }
     .dtmf-hist-char:active { transform: scale(0.96); }
-    .dtmf-keypad { display: grid; grid-template-columns: repeat(4, minmax(56px, 1fr)); gap: 10px; max-width: 320px; }
+    .dtmf-keypad {
+      display: grid; grid-template-columns: repeat(4, minmax(60px, 1fr)); gap: 12px;
+      max-width: 340px; width: 100%; margin-inline: auto;
+    }
     .dtmf-key {
       aspect-ratio: 1; border-radius: 14px; border: 1px solid var(--border);
       background: linear-gradient(165deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
@@ -81,15 +108,57 @@ function injectStyles() {
     .dtmf-key:hover { border-color: rgba(47, 210, 168, 0.45); }
     .dtmf-key:active, .dtmf-key.is-pressed { transform: scale(0.96); box-shadow: inset 0 0 0 2px rgba(47, 210, 168, 0.35); }
     .dtmf-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .dtmf-status { font-size: 13px; color: var(--muted); margin: 0; }
-    .dtmf-help { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 0; max-width: 42rem; }
-    .dtmf-pending-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; max-width: 360px; }
-    .dtmf-pending-readout { font-family: "Space Grotesk", sans-serif; font-size: 22px; font-weight: 600;
-      min-width: 2em; color: var(--accent); letter-spacing: 0.08em; }
+    .dtmf-status { font-size: 13px; color: var(--muted); margin: 0; text-align: center; max-width: 42rem; }
+    .dtmf-help { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 0; max-width: 42rem; text-align: center; }
+    .dtmf-pending-row {
+      display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center;
+      width: 100%; max-width: 440px; margin-inline: auto;
+    }
+    .dtmf-pending-readout {
+      font-family: "Space Grotesk", sans-serif; font-size: 22px; font-weight: 600;
+      min-width: 2em; color: var(--accent); letter-spacing: 0.08em;
+      word-break: break-all; text-align: center; flex: 1 1 120px;
+    }
     .dtmf-key.is-pending-choice { border-color: rgba(47, 210, 168, 0.65);
       box-shadow: 0 0 0 1px rgba(47, 210, 168, 0.35); }
+    .dtmf-root--phone-mode .dtmf-keypad,
+    .dtmf-root--phone-mode .dtmf-pending-row {
+      opacity: 0.42; pointer-events: none; user-select: none;
+    }
+    .dtmf-root--phone-mode .dtmf-hist-char {
+      opacity: 0.5; pointer-events: none; cursor: default;
+    }
   `;
   document.head.appendChild(style);
+}
+
+/**
+ * @param {AudioContext} ctx
+ * @param {GainNode} tapGainNode
+ */
+function scheduleDtmfToneAt(ctx, tapGainNode, lowHz, highHz, t0) {
+  const dur = TONE_MS / 1000;
+  const envelope = ctx.createGain();
+  envelope.gain.setValueAtTime(0, t0);
+  envelope.gain.linearRampToValueAtTime(0.2, t0 + 0.02);
+  envelope.gain.setValueAtTime(0.2, t0 + Math.max(0, dur - 0.02));
+  envelope.gain.linearRampToValueAtTime(0, t0 + dur);
+
+  const oscL = ctx.createOscillator();
+  const oscH = ctx.createOscillator();
+  oscL.type = "sine";
+  oscH.type = "sine";
+  oscL.frequency.setValueAtTime(lowHz, t0);
+  oscH.frequency.setValueAtTime(highHz, t0);
+
+  oscL.connect(envelope);
+  oscH.connect(envelope);
+  envelope.connect(tapGainNode);
+
+  oscL.start(t0);
+  oscH.start(t0);
+  oscL.stop(t0 + dur + 0.02);
+  oscH.stop(t0 + dur + 0.02);
 }
 
 /**
@@ -227,7 +296,7 @@ function decodeFrame(analyser, context) {
   const rowIdx = ROW_HZ.indexOf(bestRow.hz);
   const colIdx = COL_HZ.indexOf(bestCol.hz);
   const digit = KEY_MATRIX[rowIdx][colIdx];
-  const detail = `${digit}: ${bestRow.freq.toFixed(1)} Hz + ${bestCol.freq.toFixed(1)} Hz (Δ ${dbDiff.toFixed(1)} dB)`;
+  const detail = `DTMF · phím «${digit}»: ${bestRow.freq.toFixed(1)} Hz + ${bestCol.freq.toFixed(1)} Hz (Δ ${dbDiff.toFixed(1)} dB)`;
   return { digit, detail };
 }
 
@@ -269,18 +338,33 @@ function mountDtmfDecoder(root) {
   optMic.textContent = "Micro (nút micro góc trái dưới)";
   srcSel.append(optInt, optMic);
 
+  const modeToggleBtn = document.createElement("button");
+  modeToggleBtn.type = "button";
+  modeToggleBtn.className = "ghost-button dtmf-icon-btn dtmf-mode-toggle";
+  modeToggleBtn.setAttribute("aria-pressed", "false");
+  const modeIcon = document.createElement("img");
+  modeIcon.alt = "";
+  modeIcon.width = 22;
+  modeIcon.height = 22;
+  modeToggleBtn.append(modeIcon);
+
   const clearBtn = document.createElement("button");
   clearBtn.type = "button";
-  clearBtn.className = "ghost-button";
-  clearBtn.textContent = "Xóa lịch sử";
+  clearBtn.className = "ghost-button dtmf-icon-btn";
   clearBtn.setAttribute("aria-label", "Xóa chuỗi đã nhận dạng");
+  const clearImg = document.createElement("img");
+  clearImg.src = "assets/icons/delete.svg";
+  clearImg.alt = "";
+  clearImg.width = 22;
+  clearImg.height = 22;
+  clearBtn.append(clearImg);
 
-  toolbar.append(srcWrap, clearBtn);
+  toolbar.append(srcWrap, modeToggleBtn, clearBtn);
 
   const helpEl = document.createElement("p");
   helpEl.className = "dtmf-help";
   helpEl.textContent =
-    "Oscillator nội bộ: chọn phím trên bàn phím ảo (hoặc phím số, gồm * và #), rồi bấm «Phát tone» hoặc Enter — tone mới phát ra; Analyser đọc nhánh synthesizer. Micro: bật icon micro góc trái dưới rồi chọn nguồn Micro; không phát tone nội bộ để tránh trộn nguồn. Bấm từng ký tự trong lịch sử để phát lại nhanh (nội bộ). Mỗi khung: FFT dsp + Hann trên Analyser, tìm cặp tần DTMF.";
+    "Chế độ máy tính (icon laptop): gõ/bấm nhiều phím (* # gồm) vào «Chờ phát», rồi «Phát tone» hoặc Enter — phát lần lượt cả chuỗi; dòng meta giữ tần số DTMF (Hz) đủ lâu khi phát nội bộ. Chế độ điện thoại (icon điện thoại): tắt bàn phím ảo và phát nội bộ — hãy chọn nguồn Micro, bật micro góc trái dưới và phát DTMF từ điện thoại vào máy. Oscillator nội bộ + máy tính: Analyser đọc nhánh synthesizer. Micro: không phát tone nội bộ để tránh trộn nguồn. Lịch sử: bấm ký tự để phát lại một tone (chế độ máy tính). Mỗi khung: FFT + Hann, bám tám tần ITU Q.23.";
 
   const readout = document.createElement("div");
   readout.className = "dtmf-readout";
@@ -324,7 +408,7 @@ function mountDtmfDecoder(root) {
   playPendingBtn.textContent = "Phát tone";
   playPendingBtn.setAttribute(
     "aria-label",
-    "Phát tone cho phím đã chọn (chế độ nội bộ)",
+    "Phát tone cho toàn bộ chuỗi trong Chờ phát (oscillator nội bộ)",
   );
   pendingRow.append(pendingLabel, pendingEl, playPendingBtn);
 
@@ -352,15 +436,59 @@ function mountDtmfDecoder(root) {
   let stableDigit = /** @type {string | null} */ (null);
   let stableCount = 0;
 
-  /** @type {[number, number] | null} */
-  let pendingRc = null;
+  /** Chuỗi phím chờ phát nội bộ */
+  let pendingKeys = "";
+  /** true = chế độ điện thoại (tắt bàn phím ảo / chờ phát / phát nội bộ) */
+  let inputModePhone = false;
+
+  let playbackStickyUntilMs = 0;
+  let playbackStickyMetaLine = "";
+
+  function isPhoneInputMode() {
+    return inputModePhone;
+  }
+
+  function syncInputModeUi() {
+    root.classList.toggle("dtmf-root--phone-mode", inputModePhone);
+    modeToggleBtn.setAttribute("aria-pressed", inputModePhone ? "true" : "false");
+    modeIcon.src = inputModePhone
+      ? "assets/icons/phone.svg"
+      : "assets/icons/computer.svg";
+    modeToggleBtn.title = inputModePhone
+      ? "Chế độ điện thoại — chỉ thu qua micro (đang bật)"
+      : "Chế độ máy tính — bàn phím ảo và phát tone (đang bật)";
+    modeToggleBtn.setAttribute(
+      "aria-label",
+      inputModePhone
+        ? "Chế độ điện thoại đang bật — bấm để chuyển sang chế độ máy tính"
+        : "Chế độ máy tính đang bật — bấm để chuyển sang chế độ điện thoại",
+    );
+    playPendingBtn.disabled = inputModePhone;
+  }
+
+  syncInputModeUi();
+
+  modeToggleBtn.addEventListener(
+    "click",
+    () => {
+      inputModePhone = !inputModePhone;
+      syncInputModeUi();
+      statusEl.textContent = inputModePhone
+        ? "Chế độ điện thoại: chọn nguồn Micro và phát DTMF vào micro máy tính."
+        : "Chế độ máy tính: thêm phím vào «Chờ phát», rồi «Phát tone» hoặc Enter.";
+    },
+    { signal },
+  );
 
   function refreshPendingKeyHighlight() {
     for (const el of keypad.querySelectorAll(".dtmf-key")) {
       el.classList.remove("is-pending-choice");
     }
-    if (!pendingRc) return;
-    const [pr, pc] = pendingRc;
+    const last = pendingKeys.slice(-1);
+    if (!last) return;
+    const rc = lookupDigitRcFromKey(last);
+    if (!rc) return;
+    const [pr, pc] = rc;
     const idx = pr * 4 + pc;
     const btn = keypad.querySelectorAll(".dtmf-key")[idx];
     if (btn instanceof HTMLElement) {
@@ -372,23 +500,120 @@ function mountDtmfDecoder(root) {
    * @param {number} r
    * @param {number} c
    */
-  function setPendingDigit(r, c) {
-    pendingRc = [r, c];
-    pendingEl.textContent = KEY_MATRIX[r][c];
+  function appendPendingKey(r, c) {
+    if (pendingKeys.length >= PENDING_MAX_LEN) return;
+    pendingKeys += KEY_MATRIX[r][c];
+    pendingEl.textContent = pendingKeys;
     refreshPendingKeyHighlight();
   }
 
-  function commitPlayPending() {
-    if (!pendingRc) {
-      statusEl.textContent =
-        "Chọn một phím DTMF trước, rồi bấm «Phát tone» hoặc Enter.";
-      return;
-    }
-    const [r, c] = pendingRc;
-    playDtmf(ROW_HZ[r], COL_HZ[c]);
-    pendingRc = null;
+  function clearPendingKeys() {
+    pendingKeys = "";
     pendingEl.textContent = "—";
     refreshPendingKeyHighlight();
+  }
+
+  /**
+   * @param {string} str
+   */
+  function scheduleSequenceStickyUi(str, chars) {
+    const segmentWallMs = TONE_MS + TONE_GAP_MS;
+    const alignMs = 28;
+    const startWall = performance.now() + alignMs;
+
+    chars.forEach((ch, i) => {
+      const rc = lookupDigitRcFromKey(ch);
+      if (!rc) return;
+      const [r, c] = rc;
+      const low = ROW_HZ[r];
+      const high = COL_HZ[c];
+      const fireAt = startWall + i * segmentWallMs;
+      const delayMs = Math.max(0, fireAt - performance.now());
+      setTimeout(() => {
+        if (signal.aborted) return;
+        playbackStickyMetaLine = `Phát nội bộ — phím DTMF «${ch}»: ${low} Hz + ${high} Hz`;
+        playbackStickyUntilMs = Math.max(
+          playbackStickyUntilMs,
+          performance.now() + TONE_MS + 300,
+        );
+      }, delayMs);
+    });
+
+    const totalWallMs =
+      alignMs +
+      chars.length * TONE_MS +
+      Math.max(0, chars.length - 1) * TONE_GAP_MS;
+    setTimeout(() => {
+      if (signal.aborted) return;
+      playbackStickyMetaLine = `Đã phát chuỗi DTMF «${str}» (${chars.length} tone, ${TONE_MS} ms/tone)`;
+      playbackStickyUntilMs = Math.max(
+        playbackStickyUntilMs,
+        performance.now() + PLAYBACK_STICKY_TAIL_MS,
+      );
+    }, Math.max(0, totalWallMs + 40));
+  }
+
+  /**
+   * @param {string} str
+   */
+  function scheduleDtmfSequence(str) {
+    if (isMicSource()) {
+      statusEl.textContent =
+        "Nguồn đang là micro: không phát tone nội bộ. Chọn «Oscillator nội bộ» để phát chuỗi.";
+      return;
+    }
+    wireInternalTapOnly();
+    const ctx = /** @type {AudioContext} */ (audioCtx);
+    const tap = /** @type {GainNode} */ (tapGain);
+    const chars = [...str].filter((ch) => lookupDigitRcFromKey(ch));
+    if (!chars.length) {
+      statusEl.textContent = "Chuỗi chờ không có phím DTMF hợp lệ.";
+      return;
+    }
+    const toneSec = TONE_MS / 1000;
+    const gapSec = TONE_GAP_MS / 1000;
+    let tAudio = ctx.currentTime + 0.02;
+    for (const ch of chars) {
+      const rc = lookupDigitRcFromKey(ch);
+      if (!rc) continue;
+      const [r, c] = rc;
+      scheduleDtmfToneAt(ctx, tap, ROW_HZ[r], COL_HZ[c], tAudio);
+      tAudio += toneSec + gapSec;
+    }
+    scheduleSequenceStickyUi(str, chars);
+    statusEl.textContent = `Đang phát chuỗi «${str}» (${chars.length} tone)`;
+  }
+
+  /** Một tone ngay lập tức (vd. từ lịch sử) */
+  function playDtmfSingle(lowHz, highHz, labelCh) {
+    if (isMicSource()) {
+      statusEl.textContent =
+        "Nguồn đang là micro: không phát tone nội bộ. Chọn «Oscillator nội bộ» để phát lại.";
+      return;
+    }
+    wireInternalTapOnly();
+    const ctx = /** @type {AudioContext} */ (audioCtx);
+    scheduleDtmfToneAt(
+      ctx,
+      /** @type {GainNode} */ (tapGain),
+      lowHz,
+      highHz,
+      ctx.currentTime + 0.02,
+    );
+    playbackStickyMetaLine = `Phát nội bộ — phím DTMF «${labelCh}»: ${lowHz} Hz + ${highHz} Hz`;
+    playbackStickyUntilMs = performance.now() + TONE_MS + PLAYBACK_STICKY_TAIL_MS;
+    statusEl.textContent = `Phát ${lowHz} Hz + ${highHz} Hz (${TONE_MS} ms)`;
+  }
+
+  function commitPlayPending() {
+    if (!pendingKeys) {
+      statusEl.textContent =
+        "Thêm phím vào «Chờ phát», rồi bấm «Phát tone» hoặc Enter.";
+      return;
+    }
+    const snapshot = pendingKeys;
+    clearPendingKeys();
+    scheduleDtmfSequence(snapshot);
   }
 
   function refreshHistoryUi() {
@@ -405,18 +630,19 @@ function mountDtmfDecoder(root) {
       btn.type = "button";
       btn.className = "dtmf-hist-char";
       btn.textContent = ch;
-      btn.setAttribute("aria-label", `Phát lại phím ${ch}`);
+      btn.setAttribute("aria-label", `Phát lại phím DTMF ${ch}`);
       btn.addEventListener(
         "click",
         () => {
+          if (isPhoneInputMode()) return;
           const rc = lookupDigitRcFromKey(ch);
           if (!rc) return;
           const [rk, ck] = rc;
-          setPendingDigit(rk, ck);
           if (!isMicSource()) {
-            commitPlayPending();
+            playDtmfSingle(ROW_HZ[rk], COL_HZ[ck], ch);
           } else {
-            statusEl.textContent = `Đã chọn «${ch}» trong Chờ phát (micro — không phát tone nội bộ).`;
+            statusEl.textContent =
+              `Micro — không phát lại «${ch}» qua loa nội bộ.`;
           }
         },
         { signal },
@@ -492,41 +718,6 @@ function mountDtmfDecoder(root) {
     disconnectMic();
   }
 
-  /** Phím ảo: hai oscillator → tapGain (100ms) — chỉ khi nguồn nội bộ (không trộn với micro). */
-  function playDtmf(lowHz, highHz) {
-    if (isMicSource()) {
-      statusEl.textContent =
-        "Nguồn đang là micro: không phát tone nội bộ. Chọn «Oscillator nội bộ» để thử phím ảo.";
-      return;
-    }
-    wireInternalTapOnly();
-    const ctx = /** @type {AudioContext} */ (audioCtx);
-    const t0 = ctx.currentTime;
-    const envelope = ctx.createGain();
-    envelope.gain.setValueAtTime(0, t0);
-    envelope.gain.linearRampToValueAtTime(0.2, t0 + 0.02);
-    envelope.gain.setValueAtTime(0.2, t0 + Math.max(0, TONE_MS / 1000 - 0.02));
-    envelope.gain.linearRampToValueAtTime(0, t0 + TONE_MS / 1000);
-
-    const oscL = ctx.createOscillator();
-    const oscH = ctx.createOscillator();
-    oscL.type = "sine";
-    oscH.type = "sine";
-    oscL.frequency.setValueAtTime(lowHz, t0);
-    oscH.frequency.setValueAtTime(highHz, t0);
-
-    oscL.connect(envelope);
-    oscH.connect(envelope);
-    envelope.connect(/** @type {GainNode} */ (tapGain));
-
-    oscL.start(t0);
-    oscH.start(t0);
-    oscL.stop(t0 + TONE_MS / 1000 + 0.02);
-    oscH.stop(t0 + TONE_MS / 1000 + 0.02);
-
-    statusEl.textContent = `Phát ${lowHz} Hz + ${highHz} Hz (${TONE_MS} ms)`;
-  }
-
   function stopLoop() {
     if (rafId) {
       cancelAnimationFrame(rafId);
@@ -550,9 +741,14 @@ function mountDtmfDecoder(root) {
       return;
     }
 
+    const wallNow = performance.now();
     const { digit, detail } = decodeFrame(analyser, audioCtx);
     currentEl.textContent = digit ?? "—";
-    metaEl.textContent = digit ? detail : `FFT dsp · ${detail}`;
+    if (wallNow < playbackStickyUntilMs) {
+      metaEl.textContent = playbackStickyMetaLine;
+    } else {
+      metaEl.textContent = digit ? detail : `FFT dsp · ${detail}`;
+    }
 
     if (!digit) {
       stableDigit = null;
@@ -614,10 +810,10 @@ function mountDtmfDecoder(root) {
       btn.addEventListener(
         "click",
         () => {
-          if (isMicSource()) return;
-          setPendingDigit(r, c);
+          if (isMicSource() || isPhoneInputMode()) return;
+          appendPendingKey(r, c);
           statusEl.textContent =
-            "Đã chọn phím — bấm «Phát tone» hoặc Enter để phát (chế độ nội bộ).";
+            "Đã thêm phím vào «Chờ phát» — «Phát tone» hoặc Enter để phát cả chuỗi.";
         },
         { signal },
       );
@@ -641,6 +837,7 @@ function mountDtmfDecoder(root) {
       ) {
         return;
       }
+      if (isPhoneInputMode()) return;
       const map = {
         Digit1: [0, 0],
         Digit2: [0, 1],
@@ -692,9 +889,9 @@ function mountDtmfDecoder(root) {
       if (!idx || isMicSource()) return;
       ev.preventDefault();
       const [rk, ck] = idx;
-      setPendingDigit(rk, ck);
+      appendPendingKey(rk, ck);
       statusEl.textContent =
-        "Đã chọn phím — bấm «Phát tone» hoặc Enter để phát (chế độ nội bộ).";
+        "Đã thêm phím vào «Chờ phát» — «Phát tone» hoặc Enter để phát cả chuỗi.";
       const b = keypad.querySelectorAll(".dtmf-key")[rk * 4 + ck];
       if (b instanceof HTMLElement) {
         b.classList.add("is-pressed");
@@ -751,7 +948,7 @@ function mountDtmfDecoder(root) {
       if (srcSel.value === "internal") {
         wireInternalTapOnly();
         statusEl.textContent =
-          "Nội bộ: chọn phím rồi «Phát tone» hoặc Enter; FFT trên luồng synthesizer.";
+          "Nội bộ: thêm phím vào «Chờ phát», rồi «Phát tone» hoặc Enter; FFT trên luồng synthesizer.";
       } else {
         if (hasLiveMicStream() && getSharedAudioContext()) {
           void connectMicGraphFromSharedStream();
@@ -780,7 +977,7 @@ function mountDtmfDecoder(root) {
   wireInternalTapOnly();
   refreshHistoryUi();
   statusEl.textContent =
-    "Nội bộ: chọn phím rồi «Phát tone» hoặc Enter. Micro: icon micro góc trái dưới.";
+    "Chế độ máy tính: thêm phím vào «Chờ phát», «Phát tone» hoặc Enter. Micro: icon micro góc trái dưới.";
   startLoop();
 
   document.addEventListener(
