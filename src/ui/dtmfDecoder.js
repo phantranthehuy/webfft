@@ -59,7 +59,6 @@ function injectStyles() {
       display: flex; flex-direction: column; gap: 20px; align-items: center;
       width: 100%; max-width: 560px; margin-inline: auto;
     }
-    .dtmf-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; }
     .dtmf-icon-btn {
       padding: 10px 14px; display: inline-flex; align-items: center; justify-content: center;
       min-width: 44px; min-height: 44px;
@@ -106,6 +105,9 @@ function injectStyles() {
     .dtmf-pending-row {
       display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center;
       width: 100%; max-width: 440px; margin-inline: auto;
+    }
+    .dtmf-pending-actions {
+      display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center;
     }
     .dtmf-pending-readout {
       font-family: "Space Grotesk", sans-serif; font-size: 22px; font-weight: 600;
@@ -305,9 +307,6 @@ function mountDtmfDecoder(root) {
   root.classList.add("dtmf-root");
   root.innerHTML = "";
 
-  const toolbar = document.createElement("div");
-  toolbar.className = "dtmf-toolbar";
-
   const clearBtn = document.createElement("button");
   clearBtn.type = "button";
   clearBtn.className = "ghost-button dtmf-icon-btn";
@@ -319,7 +318,19 @@ function mountDtmfDecoder(root) {
   clearImg.height = 22;
   clearBtn.append(clearImg);
 
-  toolbar.append(clearBtn);
+  const backspaceBtn = document.createElement("button");
+  backspaceBtn.type = "button";
+  backspaceBtn.className = "ghost-button dtmf-icon-btn";
+  backspaceBtn.setAttribute(
+    "aria-label",
+    "Xóa một ký tự cuối trong Chờ phát",
+  );
+  const backspaceImg = document.createElement("img");
+  backspaceImg.src = "assets/icons/backspace.svg";
+  backspaceImg.alt = "";
+  backspaceImg.width = 22;
+  backspaceImg.height = 22;
+  backspaceBtn.append(backspaceImg);
 
   const helpEl = document.createElement("p");
   helpEl.className = "dtmf-help";
@@ -370,12 +381,15 @@ function mountDtmfDecoder(root) {
     "aria-label",
     "Phát tone cho toàn bộ chuỗi trong Chờ phát (oscillator nội bộ)",
   );
-  pendingRow.append(pendingLabel, pendingEl, playPendingBtn);
+  const pendingActions = document.createElement("div");
+  pendingActions.className = "dtmf-pending-actions";
+  pendingActions.append(backspaceBtn, clearBtn, playPendingBtn);
+  pendingRow.append(pendingLabel, pendingEl, pendingActions);
 
   const statusEl = document.createElement("p");
   statusEl.className = "dtmf-status";
 
-  root.append(toolbar, helpEl, readout, keypad, pendingRow, statusEl);
+  root.append(helpEl, readout, keypad, pendingRow, statusEl);
 
   /** @type {AudioContext | null} */
   let audioCtx = null;
@@ -406,6 +420,8 @@ function mountDtmfDecoder(root) {
     const live = hasLiveMicStream();
     root.classList.toggle("dtmf-root--mic-live", live);
     playPendingBtn.disabled = live;
+    clearBtn.disabled = live;
+    backspaceBtn.disabled = live || pendingKeys.length === 0;
   }
 
   function refreshPendingKeyHighlight() {
@@ -433,12 +449,22 @@ function mountDtmfDecoder(root) {
     pendingKeys += KEY_MATRIX[r][c];
     pendingEl.textContent = pendingKeys;
     refreshPendingKeyHighlight();
+    syncMicDriveUi();
+  }
+
+  function popPendingKey() {
+    if (!pendingKeys) return;
+    pendingKeys = pendingKeys.slice(0, -1);
+    pendingEl.textContent = pendingKeys || "—";
+    refreshPendingKeyHighlight();
+    syncMicDriveUi();
   }
 
   function clearPendingKeys() {
     pendingKeys = "";
     pendingEl.textContent = "—";
     refreshPendingKeyHighlight();
+    syncMicDriveUi();
   }
 
   /**
@@ -782,6 +808,12 @@ function mountDtmfDecoder(root) {
         commitPlayPending();
         return;
       }
+      if (ev.code === "Backspace") {
+        if (!pendingKeys) return;
+        ev.preventDefault();
+        popPendingKey();
+        return;
+      }
 
       const numpadMap = /** @type {const} */ ({
         Numpad1: [0, 0],
@@ -866,6 +898,14 @@ function mountDtmfDecoder(root) {
       lastEmitAt = 0;
       stableDigit = null;
       stableCount = 0;
+    },
+    { signal },
+  );
+
+  backspaceBtn.addEventListener(
+    "click",
+    () => {
+      popPendingKey();
     },
     { signal },
   );

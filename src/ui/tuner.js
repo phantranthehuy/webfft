@@ -298,30 +298,54 @@ function mountTunerUi(root) {
 
   const toolbar = document.createElement("div");
   toolbar.className = "tuner-toolbar";
-  const lab = document.createElement("label");
+  const lab = document.createElement("div");
   lab.className = "tuner-field";
   const labSpan = document.createElement("span");
   labSpan.textContent = "Phát hiện cao độ";
-  const methodSel = document.createElement("select");
-  methodSel.setAttribute("aria-label", "Phương pháp phát hiện cao độ");
-  for (const [v, t] of [
-    ["peak", "Đỉnh phổ (FFT)"],
-    ["yin", "YIN (miền thời gian)"],
-  ]) {
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = t;
-    methodSel.appendChild(o);
+
+  const toggleWrap = document.createElement("div");
+  toggleWrap.className = "tuner-method-toggle";
+  toggleWrap.setAttribute("role", "group");
+  toggleWrap.setAttribute("aria-label", "Phương pháp phát hiện cao độ");
+
+  /** @type {HTMLButtonElement[]} */
+  const methodBtns = [];
+
+  function syncMethodToggleUi() {
+    for (const btn of methodBtns) {
+      const on = btn.dataset.method === tunerMethod;
+      btn.classList.toggle("is-selected", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    }
   }
-  methodSel.value = tunerMethod;
-  methodSel.addEventListener(
-    "change",
-    () => {
-      tunerMethod = /** @type {'peak' | 'yin'} */ (methodSel.value);
-    },
-    { signal },
-  );
-  lab.append(labSpan, methodSel);
+
+  for (const [v, title] of /** @type {const} */ ([
+    ["peak", "Đỉnh phổ"],
+    ["yin", "YIN"],
+  ])) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tuner-method-btn";
+    btn.dataset.method = v;
+    btn.textContent = title;
+    btn.title =
+      v === "peak"
+        ? "Đỉnh phổ (FFT)"
+        : "YIN — miền thời gian";
+    btn.addEventListener(
+      "click",
+      () => {
+        tunerMethod = /** @type {'peak' | 'yin'} */ (v);
+        syncMethodToggleUi();
+      },
+      { signal },
+    );
+    methodBtns.push(btn);
+    toggleWrap.appendChild(btn);
+  }
+  syncMethodToggleUi();
+
+  lab.append(labSpan, toggleWrap);
   toolbar.append(lab);
 
   canvasWrap = document.createElement("div");

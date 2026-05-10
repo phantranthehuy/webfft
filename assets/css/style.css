@@ -277,6 +277,7 @@ body {
 .dft-field textarea,
 .dft-field select {
   width: 100%;
+  min-height: 48px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg-alt);
@@ -291,9 +292,12 @@ body {
   resize: vertical;
 }
 
-.dft-choice-toggle {
+.dft-choice-toggle,
+.spectrum-choice-toggle {
   display: inline-flex;
   width: 100%;
+  flex-wrap: wrap;
+  min-height: 48px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface-strong);
@@ -301,7 +305,8 @@ body {
   gap: 4px;
 }
 
-.dft-choice-btn {
+.dft-choice-btn,
+.spectrum-choice-btn {
   appearance: none;
   border: none;
   border-radius: 8px;
@@ -320,23 +325,27 @@ body {
     color 0.15s ease;
 }
 
-.dft-choice-btn:hover {
+.dft-choice-btn:hover,
+.spectrum-choice-btn:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
 }
 
-.dft-choice-btn:disabled {
+.dft-choice-btn:disabled,
+.spectrum-choice-btn:disabled {
   cursor: default;
   opacity: 0.48;
 }
 
-.dft-choice-btn.is-selected {
+.dft-choice-btn.is-selected,
+.spectrum-choice-btn.is-selected {
   color: var(--text);
   background: var(--surface);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
 }
 
-.dft-choice-btn:focus-visible {
+.dft-choice-btn:focus-visible,
+.spectrum-choice-btn:focus-visible {
   outline: 2px solid var(--accent, #6cd49a);
   outline-offset: 2px;
 }
@@ -623,14 +632,50 @@ body {
   color: var(--muted);
 }
 
-.tuner-field select {
-  min-width: 220px;
+.tuner-method-toggle {
+  display: inline-flex;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface-strong);
-  color: var(--text);
-  padding: 8px 12px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.tuner-method-btn {
+  appearance: none;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
   font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.tuner-method-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tuner-method-btn:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.tuner-method-btn.is-selected {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+
+.tuner-method-btn:focus-visible {
+  outline: 2px solid var(--accent, #6cd49a);
+  outline-offset: 2px;
 }
 
 .tuner-canvas-wrap {
