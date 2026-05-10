@@ -26,7 +26,6 @@
           <span class="brand-mark">WebFFT</span>
           <span class="brand-subtitle">DFT and real-time audio lab</span>
         </div>
-        <button class="ghost-button" id="start-audio" type="button">Start Audio</button>
       </header>
 
       <nav class="tabs" role="tablist" aria-label="WebFFT modes">
@@ -171,6 +170,26 @@
       <footer class="app-footer">
         <span>Audio is processed locally in your browser.</span>
       </footer>
+    </div>
+
+    <div class="audio-fab-stack" id="audio-fab-stack" hidden>
+      <button
+        type="button"
+        class="mic-fab"
+        id="mic-fab"
+        aria-pressed="false"
+        aria-label="Bật micro"
+        title="Bật micro"
+      >
+        <img
+          id="mic-fab-icon"
+          src="assets/icons/mic_off.svg"
+          alt=""
+          width="26"
+          height="26"
+          decoding="async"
+        />
+      </button>
     </div>
 
     <script type="module" src="src/app.js"></script>

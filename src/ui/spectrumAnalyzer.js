@@ -330,7 +330,7 @@ function mountSpectrumUi(root) {
   statusEl = document.createElement("p");
   statusEl.className = "spectrum-status";
   statusEl.textContent =
-    "Bấm Start Audio trên header, sau đó chọn thông số để xem phổ.";
+    "Bật icon micro góc trái dưới, sau đó chọn thông số để xem phổ.";
 
   appendChildren(root, toolbar, canvasWrap, statusEl);
 
@@ -356,6 +356,15 @@ function mountSpectrumUi(root) {
     void connectAnalyzerMic();
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
+
+  const onStopAudioEv = () => {
+    teardownAudio();
+    if (statusEl) {
+      statusEl.textContent =
+        "Micro đã dừng. Bật lại icon micro góc trái dưới để lắng nghe, sau đó chọn thông số để xem phổ.";
+    }
+  };
+  document.addEventListener("webfft:stop-audio", onStopAudioEv, { signal });
 
   return () => {
     ac.abort();

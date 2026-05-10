@@ -1,4 +1,9 @@
-import { ensureMicStream } from "./audioEngine.js";
+import {
+  ensureMicStream,
+  hasLiveMicStream,
+  releaseSharedMic,
+  setResumeUiSuppressed,
+} from "./audioEngine.js";
 import { createUiManager } from "./ui/uiManager.js";
 import { createDftSimulatorMode } from "./ui/dftSimulator.js";
 import { createSpectrumAnalyzerMode } from "./ui/spectrumAnalyzer.js";
@@ -13,6 +18,9 @@ const TAB_ORDER = /** @type {const} */ ([
   "noise",
   "tuner",
 ]);
+
+const MIC_ICON_OFF = "assets/icons/mic_off.svg";
+const MIC_ICON_ON = "assets/icons/mic_on.svg";
 
 const tabs = /** @type {HTMLButtonElement[]} */ (
   Array.from(document.querySelectorAll(".tab"))
@@ -33,7 +41,80 @@ const modes = {
 
 const ui = createUiManager({ tabs, panels, modes });
 
-const startAudioButton = document.getElementById("start-audio");
+const audioFabStack = document.getElementById("audio-fab-stack");
+const micFab = document.getElementById("mic-fab");
+const micFabIcon = document.getElementById("mic-fab-icon");
+
+/**
+ * @param {{ loading?: boolean }} [opts]
+ */
+function syncMicFabAppearance(opts = {}) {
+  const loading = opts.loading ?? false;
+  if (!micFab || !micFabIcon) return;
+  const live = hasLiveMicStream();
+  micFabIcon.src = live ? MIC_ICON_ON : MIC_ICON_OFF;
+  micFab.setAttribute("aria-pressed", live ? "true" : "false");
+  const label = live ? "Tắt micro" : "Bật micro";
+  micFab.setAttribute("aria-label", label);
+  if (!loading) {
+    micFab.title = label;
+  }
+  micFab.disabled = loading;
+}
+
+function bindMicFab() {
+  if (!micFab) return;
+
+  let lastToggleAt = -Infinity;
+  let inFlight = false;
+
+  micFab.addEventListener("click", () => {
+    void (async () => {
+      const now = performance.now();
+      if (inFlight || now - lastToggleAt < 450) return;
+      lastToggleAt = now;
+
+      if (hasLiveMicStream()) {
+        releaseSharedMic();
+        document.dispatchEvent(new CustomEvent("webfft:stop-audio"));
+        syncMicFabAppearance({ loading: false });
+        return;
+      }
+
+      inFlight = true;
+      syncMicFabAppearance({ loading: true });
+      micFab.removeAttribute("title");
+      try {
+        await ensureMicStream();
+        document.dispatchEvent(new CustomEvent("webfft:start-audio"));
+        syncMicFabAppearance({ loading: false });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        micFab.title = msg;
+        syncMicFabAppearance({ loading: false });
+      } finally {
+        inFlight = false;
+      }
+    })();
+  });
+}
+
+/**
+ * @param {string} tabId
+ */
+async function showTabWithShell(tabId) {
+  await ui.showTab(tabId);
+  const realtime = modes[tabId]?.isRealtimeAudio === true;
+  setResumeUiSuppressed(!realtime);
+  if (audioFabStack) {
+    audioFabStack.hidden = !realtime;
+  }
+  if (!realtime) {
+    releaseSharedMic();
+    document.dispatchEvent(new CustomEvent("webfft:stop-audio"));
+  }
+  syncMicFabAppearance({ loading: false });
+}
 
 function tabIdFromHash() {
   const id = location.hash.slice(1);
@@ -45,67 +126,20 @@ function bindTabClicks() {
     const id = tab.dataset.tab;
     if (!id || !ui.validTabIds.has(id)) continue;
     tab.addEventListener("click", () => {
-      void ui.showTab(id);
+      void showTabWithShell(id);
     });
   }
 }
 
 function bindHashNavigation() {
   window.addEventListener("hashchange", () => {
-    void ui.showTab(tabIdFromHash());
+    void showTabWithShell(tabIdFromHash());
   });
-}
-
-function bindStartAudio() {
-  if (!startAudioButton) return;
-
-  /** Tránh gọi hai lần trên Android (pointerup cảm ứng + click). */
-  let lastStartAt = -Infinity;
-  let inFlight = false;
-
-  const run = async () => {
-    const now = performance.now();
-    if (inFlight || now - lastStartAt < 450) return;
-    lastStartAt = now;
-    inFlight = true;
-    startAudioButton.disabled = true;
-    startAudioButton.textContent = "Đang mở…";
-    startAudioButton.removeAttribute("title");
-    try {
-      await ensureMicStream();
-      startAudioButton.textContent = "Audio Ready";
-      document.dispatchEvent(new CustomEvent("webfft:start-audio"));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      startAudioButton.textContent = "Start Audio";
-      startAudioButton.title = msg;
-    } finally {
-      inFlight = false;
-      if (startAudioButton.textContent === "Audio Ready") {
-        startAudioButton.disabled = true;
-      } else {
-        startAudioButton.disabled = false;
-      }
-    }
-  };
-
-  startAudioButton.addEventListener("click", () => {
-    void run();
-  });
-  startAudioButton.addEventListener(
-    "pointerup",
-    (ev) => {
-      if (ev.pointerType === "touch") {
-        void run();
-      }
-    },
-    { passive: true },
-  );
 }
 
 bindTabClicks();
 bindHashNavigation();
-bindStartAudio();
+bindMicFab();
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
@@ -120,7 +154,7 @@ function registerServiceWorker() {
 
 registerServiceWorker();
 
-void ui.showTab(tabIdFromHash());
+void showTabWithShell(tabIdFromHash());
 
 /** Điều hướng bàn phím giữa các tab (mũi tên trái/phải). */
 document.addEventListener("keydown", (ev) => {
@@ -141,7 +175,7 @@ document.addEventListener("keydown", (ev) => {
       ? Math.min(TAB_ORDER.length - 1, idx + 1)
       : Math.max(0, idx - 1);
   const nextId = TAB_ORDER[nextIdx];
-  void ui.showTab(nextId);
+  void showTabWithShell(nextId);
   const nextBtn = tabs.find((t) => t.dataset.tab === nextId);
   nextBtn?.focus();
 });

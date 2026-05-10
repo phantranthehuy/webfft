@@ -4,6 +4,15 @@
 
 /**
  * @typedef {{
+ *   hz: number,
+ *   note: string,
+ *   cents: number,
+ *   methodLabel?: string,
+ * }} TunerHoldReading
+ */
+
+/**
+ * @typedef {{
  *   active: boolean,
  *   hz?: number,
  *   note?: string,
@@ -11,6 +20,7 @@
  *   peakDb?: number,
  *   idleHint?: string,
  *   methodLabel?: string,
+ *   hold?: TunerHoldReading | null,
  * }} TunerDisplayState
  */
 
@@ -66,6 +76,90 @@ export function drawTunerFrame(canvas, state) {
   ctx.textBaseline = "middle";
 
   if (!state.active) {
+    const hold = state.hold;
+    if (
+      hold &&
+      Number.isFinite(hold.hz) &&
+      hold.note &&
+      Number.isFinite(hold.cents)
+    ) {
+      const hz = hold.hz;
+      const note = hold.note;
+      const cents = hold.cents;
+
+      ctx.fillStyle = muted;
+      ctx.font = `600 ${Math.round(noteSize * 0.88)}px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.fillText(note, cssW / 2, centerY - 8);
+
+      ctx.font = `500 14px "IBM Plex Mono", ui-monospace, monospace`;
+      const hzLine = hold.methodLabel
+        ? `${hz.toFixed(1)} Hz · ${hold.methodLabel}`
+        : `${hz.toFixed(1)} Hz`;
+      ctx.fillText(hzLine, cssW / 2, centerY + noteSize * 0.38);
+
+      ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.fillText("Giữ giá trị cuối — chờ tín hiệu mới", cssW / 2, centerY + noteSize * 0.62);
+
+      const gaugeTop = centerY + noteSize * 0.72;
+      const gaugeH = 44;
+      const gw = cssW - pad * 2;
+      const gx = pad;
+      const gy = gaugeTop;
+
+      ctx.strokeStyle = border;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(gx, gy, gw, gaugeH);
+
+      const grad = ctx.createLinearGradient(gx, 0, gx + gw, 0);
+      grad.addColorStop(0, "rgba(220, 90, 90, 0.22)");
+      grad.addColorStop(0.45, "rgba(90, 180, 120, 0.12)");
+      grad.addColorStop(0.5, "rgba(90, 200, 130, 0.28)");
+      grad.addColorStop(0.55, "rgba(90, 180, 120, 0.12)");
+      grad.addColorStop(1, "rgba(220, 90, 90, 0.22)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(gx + 1, gy + 1, gw - 2, gaugeH - 2);
+
+      const range = 50;
+      const t = Math.max(-1, Math.min(1, cents / range));
+      const nx = gx + gw * 0.5 + t * (gw * 0.5 - 8);
+
+      ctx.beginPath();
+      ctx.moveTo(nx, gy + 4);
+      ctx.lineTo(nx - 9, gy + gaugeH - 4);
+      ctx.lineTo(nx + 9, gy + gaugeH - 4);
+      ctx.closePath();
+      ctx.fillStyle = muted;
+      ctx.fill();
+
+      ctx.fillStyle = muted;
+      ctx.font = `400 11px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("−50¢", gx, gy + gaugeH + 6);
+      ctx.textAlign = "center";
+      ctx.fillText("0", gx + gw / 2, gy + gaugeH + 6);
+      ctx.textAlign = "right";
+      ctx.fillText("+50¢", gx + gw, gy + gaugeH + 6);
+
+      ctx.textAlign = "center";
+      ctx.font = `600 16px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.fillText(`${cents >= 0 ? "+" : ""}${cents.toFixed(1)} ¢`, cssW / 2, gy + gaugeH + 28);
+
+      if (state.idleHint) {
+        ctx.fillStyle = muted;
+        ctx.font = `400 13px "IBM Plex Sans", system-ui, sans-serif`;
+        ctx.fillText(state.idleHint, cssW / 2, gy + gaugeH + 48);
+      }
+
+      if (state.peakDb !== undefined && Number.isFinite(state.peakDb)) {
+        ctx.fillStyle = muted;
+        ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
+        ctx.fillText(`Đỉnh dải 60–2000 Hz ≈ ${state.peakDb.toFixed(1)} dB`, cssW / 2, cssH - pad);
+      }
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = muted;
     ctx.font = `600 ${Math.round(noteSize * 0.55)}px "IBM Plex Sans", system-ui, sans-serif`;
     ctx.fillText("—", cssW / 2, centerY);

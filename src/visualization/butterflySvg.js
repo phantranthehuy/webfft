@@ -140,7 +140,10 @@ export function drawButterfly(containerId, data, opts = {}) {
 
   root.replaceChildren();
   root.style.position = "relative";
-  root.style.minHeight = "240px";
+  root.style.width = "100%";
+  root.style.maxWidth = "100%";
+  root.style.boxSizing = "border-box";
+  root.style.minHeight = "min(240px, 60vh)";
 
   const suffix = uniqueSuffix(root);
   const arrowMarkerId = `bf-arrow-${suffix}`;
@@ -174,9 +177,12 @@ export function drawButterfly(containerId, data, opts = {}) {
       `FFT butterfly diagram, ${type}, N=${N}, ${numStages} stages`,
     )
     .attr("class", "bf-d3-svg butterfly-svg")
-    .attr("width", plotWidth)
-    .attr("height", plotHeight)
+    .attr("viewBox", `0 0 ${plotWidth} ${plotHeight}`)
+    .attr("preserveAspectRatio", "xMidYMid meet")
+    .attr("width", "100%")
     .style("display", "block")
+    .style("width", "100%")
+    .style("height", "auto")
     .style("max-width", "100%");
 
   const defs = svg.append("defs");
