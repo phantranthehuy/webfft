@@ -507,9 +507,14 @@ function mountDftSimulator(root) {
   const labN = document.createElement("label");
   labN.className = "dft-field";
   labN.innerHTML = `<span>Độ dài N (≤ 16)</span>`;
-  const selN = document.createElement("select");
-  selN.id = "dft-n";
-  labN.appendChild(selN);
+  const inputN = document.createElement("input");
+  inputN.type = "number";
+  inputN.id = "dft-n";
+  inputN.setAttribute("aria-label", "Độ dài N");
+  inputN.min = "1";
+  inputN.max = "16";
+  inputN.step = "1";
+  labN.appendChild(inputN);
 
   const labAlgo = document.createElement("label");
   labAlgo.className = "dft-field";
@@ -833,28 +838,49 @@ function mountDftSimulator(root) {
   );
   root.append(grid, kStepDock);
 
-  function fillNOptions() {
-    const algo = selAlgo.value;
-    const prev = Number(selN.value);
-    clearHost(selN);
-    const opts =
-      algo === "FFT" ? [2, 4, 8, 16] : Array.from({ length: 16 }, (_, i) => i + 1);
+  /** @param {number[]} opts đã sắp tăng dần */
+  function nearestChoice(opts, v) {
+    let best = opts[0];
+    let bestD = Math.abs(best - v);
     for (const n of opts) {
-      const o = document.createElement("option");
-      o.value = String(n);
-      o.textContent = String(n);
-      selN.appendChild(o);
+      const d = Math.abs(n - v);
+      if (d < bestD) {
+        best = n;
+        bestD = d;
+      }
     }
-    const pick = opts.includes(prev) ? prev : opts[0];
-    selN.value = String(pick);
+    return best;
   }
 
-  fillNOptions();
+  function syncNInputForAlgo() {
+    const algo = selAlgo.value;
+    const fftOpts = /** @type {const} */ ([2, 4, 8, 16]);
+    const prevRaw = Number(String(inputN.value).trim());
+    const prev = Number.isFinite(prevRaw) ? prevRaw : NaN;
+
+    /** @type {number} */
+    let pick;
+    if (algo === "FFT") {
+      const candidate = Number.isFinite(prev) ? Math.round(prev) : fftOpts[0];
+      pick = fftOpts.includes(candidate)
+        ? candidate
+        : nearestChoice([...fftOpts], candidate);
+    } else {
+      pick = Number.isFinite(prev)
+        ? Math.min(16, Math.max(1, Math.round(prev)))
+        : 1;
+    }
+    inputN.value = String(pick);
+    inputN.min = algo === "FFT" ? "2" : "1";
+    inputN.max = "16";
+  }
+
+  syncNInputForAlgo();
 
   selAlgo.addEventListener(
     "change",
     () => {
-      fillNOptions();
+      syncNInputForAlgo();
       selFft.disabled = selAlgo.value !== "FFT";
       fftChoice.sync();
       chkStepK.disabled = selAlgo.value !== "DFT";
@@ -880,9 +906,28 @@ function mountDftSimulator(root) {
     clearHost(bfHost);
 
     try {
-      const N = Number(selN.value);
+      const rawN = Number(String(inputN.value).trim());
+      if (!Number.isFinite(rawN)) {
+        throw new Error("N phải là một số hợp lệ.");
+      }
+      const N = Math.round(rawN);
+      if (Math.abs(rawN - N) > 1e-9) {
+        throw new Error("N phải là số nguyên.");
+      }
       const algo = selAlgo.value;
       const fftKind = selFft.value;
+      if (algo === "DFT") {
+        if (N < 1 || N > 16) {
+          throw new Error("DFT: N phải từ 1 đến 16.");
+        }
+      } else {
+        const allowed = [2, 4, 8, 16];
+        if (!allowed.includes(N)) {
+          throw new Error(
+            "FFT radix-2: N chỉ được một trong các giá trị 2, 4, 8 hoặc 16.",
+          );
+        }
+      }
       const useComplex = selInputMode.value === "complex";
       /** @type {Complex[]} */
       const seq0 = useComplex

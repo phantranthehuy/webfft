@@ -43,8 +43,6 @@ const TONE_MS = 100;
 /** Khoảng nghỉ giữa hai tone khi phát chuỗi (ms) */
 const TONE_GAP_MS = 80;
 const PENDING_MAX_LEN = 32;
-/** Giữ dòng meta sau tone / sau chuỗi (ms) */
-const PLAYBACK_STICKY_TAIL_MS = 420;
 const FFT_SIZE = 2048;
 
 /** @type {Float64Array | null} */
@@ -468,9 +466,9 @@ function mountDtmfDecoder(root) {
   }
 
   /**
-   * @param {string} str
+   * @param {string[]} chars
    */
-  function scheduleSequenceStickyUi(str, chars) {
+  function scheduleSequenceStickyUi(chars) {
     const segmentWallMs = TONE_MS + TONE_GAP_MS;
     const alignMs = 28;
     const startWall = performance.now() + alignMs;
@@ -499,11 +497,12 @@ function mountDtmfDecoder(root) {
       Math.max(0, chars.length - 1) * TONE_GAP_MS;
     setTimeout(() => {
       if (signal.aborted) return;
-      playbackStickyMetaLine = `Đã phát chuỗi DTMF «${str}» (${chars.length} tone, ${TONE_MS} ms/tone)`;
-      playbackStickyUntilMs = Math.max(
-        playbackStickyUntilMs,
-        performance.now() + PLAYBACK_STICKY_TAIL_MS,
-      );
+      const lastCh = chars[chars.length - 1];
+      const rcLast = lookupDigitRcFromKey(lastCh);
+      if (!rcLast) return;
+      const [rl, cl] = rcLast;
+      playbackStickyMetaLine = `Phát nội bộ — phím DTMF «${lastCh}»: ${ROW_HZ[rl]} Hz + ${COL_HZ[cl]} Hz`;
+      playbackStickyUntilMs = Infinity;
     }, Math.max(0, totalWallMs + 40));
   }
 
@@ -534,7 +533,7 @@ function mountDtmfDecoder(root) {
       scheduleDtmfToneAt(ctx, tap, ROW_HZ[r], COL_HZ[c], tAudio);
       tAudio += toneSec + gapSec;
     }
-    scheduleSequenceStickyUi(str, chars);
+    scheduleSequenceStickyUi(chars);
     statusEl.textContent = `Đang phát chuỗi «${str}» (${chars.length} tone)`;
   }
 
@@ -555,7 +554,7 @@ function mountDtmfDecoder(root) {
       ctx.currentTime + 0.02,
     );
     playbackStickyMetaLine = `Phát nội bộ — phím DTMF «${labelCh}»: ${lowHz} Hz + ${highHz} Hz`;
-    playbackStickyUntilMs = performance.now() + TONE_MS + PLAYBACK_STICKY_TAIL_MS;
+    playbackStickyUntilMs = Infinity;
     statusEl.textContent = `Phát ${lowHz} Hz + ${highHz} Hz (${TONE_MS} ms)`;
   }
 
@@ -868,6 +867,8 @@ function mountDtmfDecoder(root) {
       audioCtx = ctx;
       ensureGraph({ monitorSpeakers: false });
       wireMicFromSharedStream(stream);
+      playbackStickyUntilMs = 0;
+      playbackStickyMetaLine = "";
       statusEl.textContent = `Micro · ${Math.round(ctx.sampleRate)} Hz`;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

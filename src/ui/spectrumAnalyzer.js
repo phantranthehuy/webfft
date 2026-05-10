@@ -451,22 +451,12 @@ function mountSpectrumUi(root) {
     o.textContent = t;
     selWin.appendChild(o);
   }
-  const winChoice = createChoiceToggle(
-    selWin,
-    [
-      ["none", "Không overlay"],
-      ["hanning", "Hann"],
-      ["hamming", "Hamming"],
-      ["blackman", "Blackman"],
-    ],
-    "Cửa sổ minh họa dsp",
-  );
 
   toolbar.append(
     mkField("FFT size", fftChoice),
     mkField("Thang", scaleChoice),
     mkField("Hiển thị", modeChoice),
-    mkField("Cửa sổ (dsp)", winChoice),
+    mkField("Cửa sổ (dsp)", selWin),
   );
 
   canvasWrap = document.createElement("div");
