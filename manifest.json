@@ -1,7 +1,7 @@
 {
   "name": "WebFFT",
   "short_name": "WebFFT",
-  "description": "Web-based DFT and real-time audio lab",
+  "description": "Mô phỏng DFT/FFT và phòng thí nghiệm âm thanh thời gian thực trên web",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

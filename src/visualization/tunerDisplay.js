@@ -93,16 +93,16 @@ export function drawTunerFrame(canvas, state) {
       const cents = hold.cents;
 
       ctx.fillStyle = muted;
-      ctx.font = `600 ${Math.round(noteSize * 0.88)}px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.font = `600 ${Math.round(noteSize * 0.88)}px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
       ctx.fillText(note, cssW / 2, centerY + noteDy);
 
-      ctx.font = `500 14px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.font = `500 14px ui-monospace, Menlo, Consolas, monospace`;
       const hzLine = hold.methodLabel
         ? `${hz.toFixed(1)} Hz · ${hold.methodLabel}`
         : `${hz.toFixed(1)} Hz`;
       ctx.fillText(hzLine, cssW / 2, centerY + noteSize * hzDyMul);
 
-      ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.font = `400 12px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
       ctx.fillText(
         "Giữ giá trị cuối — chờ tín hiệu mới",
         cssW / 2,
@@ -141,7 +141,7 @@ export function drawTunerFrame(canvas, state) {
       ctx.fill();
 
       ctx.fillStyle = muted;
-      ctx.font = `400 11px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.font = `400 11px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
       ctx.textAlign = "left";
       ctx.textBaseline = "top";
       ctx.fillText("−50¢", gx, gy + gaugeH + 6);
@@ -151,18 +151,18 @@ export function drawTunerFrame(canvas, state) {
       ctx.fillText("+50¢", gx + gw, gy + gaugeH + 6);
 
       ctx.textAlign = "center";
-      ctx.font = `600 16px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.font = `600 16px ui-monospace, Menlo, Consolas, monospace`;
       ctx.fillText(`${cents >= 0 ? "+" : ""}${cents.toFixed(1)} ¢`, cssW / 2, gy + gaugeH + 28);
 
       if (state.idleHint) {
         ctx.fillStyle = muted;
-        ctx.font = `400 13px "IBM Plex Sans", system-ui, sans-serif`;
+        ctx.font = `400 13px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
         ctx.fillText(state.idleHint, cssW / 2, gy + gaugeH + 48);
       }
 
       if (state.peakDb !== undefined && Number.isFinite(state.peakDb)) {
         ctx.fillStyle = muted;
-        ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
+        ctx.font = `400 12px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
         ctx.fillText(`Đỉnh dải 60–2000 Hz ≈ ${state.peakDb.toFixed(1)} dB`, cssW / 2, cssH - pad);
       }
       ctx.restore();
@@ -170,16 +170,16 @@ export function drawTunerFrame(canvas, state) {
     }
 
     ctx.fillStyle = muted;
-    ctx.font = `600 ${Math.round(noteSize * 0.55)}px "IBM Plex Sans", system-ui, sans-serif`;
+    ctx.font = `600 ${Math.round(noteSize * 0.55)}px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
     ctx.fillText("—", cssW / 2, centerY);
-    ctx.font = `400 14px "IBM Plex Sans", system-ui, sans-serif`;
+    ctx.font = `400 14px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
     ctx.fillText(
       state.idleHint ?? "Tín hiệu yếu hoặc im lặng (< −40 dB)",
       cssW / 2,
       centerY + noteSize * 0.55,
     );
     if (state.peakDb !== undefined && Number.isFinite(state.peakDb)) {
-      ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
+      ctx.font = `400 12px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
       ctx.fillText(`Đỉnh dải 60–2000 Hz ≈ ${state.peakDb.toFixed(1)} dB`, cssW / 2, cssH - pad);
     }
     ctx.restore();
@@ -191,11 +191,11 @@ export function drawTunerFrame(canvas, state) {
   const cents = state.cents ?? 0;
 
   ctx.fillStyle = text;
-  ctx.font = `700 ${Math.round(noteSize)}px "IBM Plex Sans", system-ui, sans-serif`;
+  ctx.font = `700 ${Math.round(noteSize)}px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
   ctx.fillText(note, cssW / 2, centerY + noteDy);
 
   ctx.fillStyle = muted;
-  ctx.font = `500 15px "IBM Plex Mono", ui-monospace, monospace`;
+  ctx.font = `500 15px ui-monospace, Menlo, Consolas, monospace`;
   const hzLine = state.methodLabel
     ? `${hz.toFixed(1)} Hz · ${state.methodLabel}`
     : `${hz.toFixed(1)} Hz`;
@@ -233,7 +233,7 @@ export function drawTunerFrame(canvas, state) {
   ctx.fill();
 
   ctx.fillStyle = muted;
-  ctx.font = `400 11px "IBM Plex Sans", system-ui, sans-serif`;
+  ctx.font = `400 11px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.fillText("−50¢", gx, gy + gaugeH + 6);
@@ -244,12 +244,12 @@ export function drawTunerFrame(canvas, state) {
 
   ctx.textAlign = "center";
   ctx.fillStyle = Math.abs(cents) < 5 ? "#6cd49a" : text;
-  ctx.font = `600 18px "IBM Plex Mono", ui-monospace, monospace`;
+  ctx.font = `600 18px ui-monospace, Menlo, Consolas, monospace`;
   ctx.fillText(`${cents >= 0 ? "+" : ""}${cents.toFixed(1)} ¢`, cssW / 2, gy + gaugeH + 28);
 
   if (state.peakDb !== undefined && Number.isFinite(state.peakDb)) {
     ctx.fillStyle = muted;
-    ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
+    ctx.font = `400 12px "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`;
     ctx.fillText(`Đỉnh dải ≈ ${state.peakDb.toFixed(1)} dB`, cssW / 2, cssH - pad);
   }
 

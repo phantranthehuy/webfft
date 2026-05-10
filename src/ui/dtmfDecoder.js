@@ -66,7 +66,7 @@ function injectStyles() {
       background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px;
       display: grid; gap: 8px; text-align: center; width: 100%; max-width: 440px;
     }
-    .dtmf-current { font-family: "Space Grotesk", sans-serif; font-size: 42px; font-weight: 600; letter-spacing: 0.06em;
+    .dtmf-current { font-family: var(--font-ui, "Helvetica Neue", Helvetica, Arial, sans-serif); font-size: 42px; font-weight: 600; letter-spacing: 0.06em;
       color: var(--accent); min-height: 1.2em; text-align: center; }
     .dtmf-meta { font-size: 13px; color: var(--muted); text-align: center; line-height: 1.45; }
     .dtmf-history-row {
@@ -92,7 +92,7 @@ function injectStyles() {
     .dtmf-key {
       aspect-ratio: 1; border-radius: 14px; border: 1px solid var(--border);
       background: linear-gradient(165deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
-      color: var(--text); font-family: "Space Grotesk", sans-serif; font-size: 18px; font-weight: 600;
+      color: var(--text); font-family: var(--font-ui, "Helvetica Neue", Helvetica, Arial, sans-serif); font-size: 18px; font-weight: 600;
       cursor: pointer; transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .dtmf-key:hover { border-color: rgba(47, 210, 168, 0.45); }
@@ -108,7 +108,7 @@ function injectStyles() {
       display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center;
     }
     .dtmf-pending-readout {
-      font-family: "Space Grotesk", sans-serif; font-size: 22px; font-weight: 600;
+      font-family: var(--font-ui, "Helvetica Neue", Helvetica, Arial, sans-serif); font-size: 22px; font-weight: 600;
       min-width: 2em; color: var(--accent); letter-spacing: 0.08em;
       word-break: break-all; text-align: center; flex: 1 1 120px;
     }
@@ -333,7 +333,7 @@ function mountDtmfDecoder(root) {
   const helpEl = document.createElement("p");
   helpEl.className = "dtmf-help";
   helpEl.textContent =
-    "Tắt micro (icon góc trái dưới): gõ hoặc bấm phím vào «Chờ phát», rồi «Phát tone» hoặc Enter để phát chuỗi nội bộ; FFT đọc nhánh synthesizer. Bật micro: chỉ nhận DTMF từ bên ngoài — bàn phím vật lý và bàn phím ảo bị khóa; không phát tone nội bộ để tránh trộn nguồn. Lịch sử: khi micro tắt, bấm ký tự để phát lại một tone. Mỗi khung: FFT + Hann, tám tần ITU Q.23.";
+    "Micro tắt: nhập phím vào «Chờ phát», rồi «Phát tone» hoặc Enter — FFT đọc đường synth nội bộ. Micro bật: chỉ giải mã âm thanh ngoài; phím ảo và máy phát nội bộ khóa để không trộn nguồn. Lịch sử (khi micro tắt): bấm ký tự để phát lại một tone. Nhận dạng: FFT + cửa sổ Hann, so khớp 8 tần ITU‑T Q.23.";
 
   const readout = document.createElement("div");
   readout.className = "dtmf-readout";
@@ -768,7 +768,7 @@ function mountDtmfDecoder(root) {
 
   root.tabIndex = 0;
   root.setAttribute("role", "region");
-  root.setAttribute("aria-label", "DTMF Decoder");
+  root.setAttribute("aria-label", "Giải mã DTMF");
 
   document.addEventListener(
     "keydown",

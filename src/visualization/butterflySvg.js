@@ -185,7 +185,7 @@ export function drawButterfly(containerId, data, opts = {}) {
     "font-size:13px",
     "line-height:1.45",
     "box-shadow:0 8px 28px rgba(0,0,0,0.35)",
-    "font-family:IBM Plex Sans,system-ui,sans-serif",
+    "font-family:'Helvetica Neue',Helvetica,Arial,system-ui,sans-serif",
   ].join(";");
   root.appendChild(tooltip);
 
@@ -194,7 +194,7 @@ export function drawButterfly(containerId, data, opts = {}) {
     .attr("role", "img")
     .attr(
       "aria-label",
-      `FFT butterfly diagram, ${type}, N=${N}, ${numStages} stages`,
+      `Sơ đồ bướm FFT ${type}, N=${N}, ${numStages} giai đoạn`,
     )
     .attr("class", "bf-d3-svg butterfly-svg")
     .attr("viewBox", `0 0 ${plotWidth} ${plotHeight}`)
@@ -241,7 +241,7 @@ export function drawButterfly(containerId, data, opts = {}) {
   inner
     .append("style")
     .text(`
-      .bf-d3-svg text { font-family: "IBM Plex Sans", system-ui, sans-serif; }
+      .bf-d3-svg text { font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; }
       .bf-bg { fill: #11171d; }
       .bf-title { fill: #eef7ff; font-size: 18px; font-weight: 700; letter-spacing: 0.08em; }
       .bf-stage-label { fill: #d7e7f4; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; }
@@ -253,7 +253,7 @@ export function drawButterfly(containerId, data, opts = {}) {
       .bf-node { fill: #f4f8fb; stroke: rgba(17,23,29,0.65); stroke-width: 0.7; }
       .bf-cap { fill: #d9e5ee; font-size: 12px; font-weight: 600; }
       .bf-twiddle-g { pointer-events: none; }
-      .bf-twiddle { fill: #f1f7fb; font-family: "IBM Plex Sans", system-ui, sans-serif; }
+      .bf-twiddle { fill: #f1f7fb; font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; }
       .bf-minus { fill: #f1f7fb; font-size: 12px; font-weight: 700; }
       .bf-x-diag { stroke: #35d6df; stroke-width: 1.45; fill: none; opacity: 0.96; }
       .bf-x-diag.is-dim { stroke: rgba(47,210,168,0.35); }
@@ -276,7 +276,7 @@ export function drawButterfly(containerId, data, opts = {}) {
     .attr("x", plotWidth / 2)
     .attr("y", 34)
     .attr("text-anchor", "middle")
-    .text(`FAST FOURIER TRANSFORM (FFT) • RADIX-2 ${type} • N = ${N}`);
+    .text(`FFT radix‑2 ${type} · N = ${N}`);
 
   const wireX0 = Math.max(18, margin.left - 34);
   const wireX1 = stageX(numStages) + 34;
@@ -293,7 +293,7 @@ export function drawButterfly(containerId, data, opts = {}) {
       .attr("x", (x0 + x1) / 2)
       .attr("y", margin.top - 54)
       .attr("text-anchor", "middle")
-      .text(`STAGE ${s + 1}`);
+      .text(`Giai đoạn ${s + 1}`);
   }
 
   for (let s = 1; s < numStages; s++) {
@@ -322,12 +322,12 @@ export function drawButterfly(containerId, data, opts = {}) {
     .attr("class", "bf-note-text")
     .attr("x", noteX + 12)
     .attr("y", noteY + 18);
-  note.append("tspan").attr("x", noteX + 12).text("*Input: Bit-Reversed Order");
+  note.append("tspan").attr("x", noteX + 12).text("*Đầu vào DIT: hoán vị bit-reverse");
   note
     .append("tspan")
     .attr("x", noteX + 12)
     .attr("dy", 15)
-    .text("(e.g., 000 → 000, 001 → 100)*");
+    .text("(vd: 000→000, 001→100)*");
 
   for (let w = 0; w < N; w++) {
     const y = wireY(w);
@@ -468,8 +468,8 @@ export function drawButterfly(containerId, data, opts = {}) {
         tooltip.style.display = "block";
         const wNk = `W<sub>${N}</sub><sup>${kInt}</sup>`;
         tooltip.innerHTML = [
-          `<div style="font-weight:600;margin-bottom:6px;color:#b8fce9;">Butterfly · stage ${sIdx + 1}/${numStages}</div>`,
-          `<div>Dây trên <code>${bf.topWire}</code>, dây dưới <code>${bf.bottomWire}</code></div>`,
+          `<div style="font-weight:600;margin-bottom:6px;color:#b8fce9;">Phép bướm · giai đoạn ${sIdx + 1}/${numStages}</div>`,
+          `<div>Dây trên chỉ số <code>${bf.topWire}</code>, dây dưới <code>${bf.bottomWire}</code></div>`,
           `<div style="margin-top:8px;"><code>A′ = A + ${wNk} · B</code></div>`,
           `<div><code>B′ = A − ${wNk} · B</code></div>`,
           `<div style="margin-top:8px;color:#9fb0bf;font-size:12px;">W<sub>${N}</sub><sup>${kInt}</sup> ≈ ${twStr}</div>`,

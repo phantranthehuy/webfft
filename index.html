@@ -1,10 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WebFFT</title>
-    <meta name="description" content="Web-based DFT and audio processing playground." />
+    <title>WebFFT - Mô phỏng DFT/FFT và xử lý âm thanh thời gian thực</title>
+    <meta
+      name="description"
+      content="Công cụ minh họa DFT, FFT radix-2 và thử nghiệm âm thanh trên trình duyệt; xử lý cục bộ, không gửi âm thanh lên máy chủ."
+    />
     <meta name="theme-color" content="#121218" />
     <link rel="manifest" href="manifest.json" />
     <link
@@ -24,11 +27,11 @@
       <header class="app-header">
         <div class="brand">
           <span class="brand-mark">WebFFT</span>
-          <span class="brand-subtitle">DFT and real-time audio lab</span>
+          <span class="brand-subtitle">Phòng thí nghiệm DFT và âm thanh thời gian thực</span>
         </div>
       </header>
 
-      <nav class="tabs" role="tablist" aria-label="WebFFT modes">
+      <nav class="tabs" role="tablist" aria-label="Các chế độ WebFFT">
         <button
           class="tab is-active"
           role="tab"
@@ -38,7 +41,7 @@
           data-tab="simulator"
           type="button"
         >
-          Simulator
+          Mô phỏng DFT
         </button>
         <button
           class="tab"
@@ -49,7 +52,7 @@
           data-tab="analyzer"
           type="button"
         >
-          Analyzer
+          Phân tích phổ
         </button>
         <button
           class="tab"
@@ -60,7 +63,7 @@
           data-tab="dtmf"
           type="button"
         >
-          DTMF Decoder
+          Giải mã DTMF
         </button>
         <button
           class="tab"
@@ -71,7 +74,7 @@
           data-tab="noise"
           type="button"
         >
-          Noise Reduction
+          Khử nhiễu phổ
         </button>
         <button
           class="tab"
@@ -82,7 +85,7 @@
           data-tab="tuner"
           type="button"
         >
-          Instrument Tuner
+          Lên dây nhạc cụ
         </button>
       </nav>
 
@@ -94,8 +97,14 @@
           id="panel-simulator"
         >
           <div class="panel-header">
-            <h2>DFT Simulator</h2>
-            <p>Step through DFT math and FFT butterflies.</p>
+            <h2>Mô phỏng DFT và FFT</h2>
+            <p class="panel-tagline">Xem công thức DFT, ma trận twiddle và các bước FFT radix‑2.</p>
+            <p class="panel-intro">
+              <strong>DFT</strong> biến đổi chuỗi mẫu miền thời gian thành các hệ số phức X[k] theo tần số rời rạc.
+              <strong>FFT</strong> là cách tính nhanh DFT khi độ dài N là lũy thừa của 2; hai biến thể hay gặp là
+              <strong>DIT</strong> (Decimation-In-Time) và <strong>DIF</strong> (Decimation-In-Frequency), ghép bằng các phép «bướm» và hệ số pha
+              W<sub>N</sub><sup>kn</sup>. Tab này minh họa toán học và sơ đồ để so sánh với thư viện dsp trong dự án.
+            </p>
           </div>
           <div class="panel-body">
             <div id="dft-simulator" class="dft-simulator"></div>
@@ -110,8 +119,13 @@
           hidden
         >
           <div class="panel-header">
-            <h2>Spectrum Analyzer</h2>
-            <p>Real-time spectrum and spectrogram.</p>
+            <h2>Phân tích phổ thời gian thực</h2>
+            <p class="panel-tagline">Phổ tần số và waterfall từ micro.</p>
+            <p class="panel-intro">
+              Tín hiệu âm thanh được chia thành các khung ngắn; mỗi khung đưa qua <strong>FFT</strong> (kích thước fftSize) để được phân bố biên độ theo tần số.
+              Trục ngang là tần số (Hz), trục dọc có thể là <strong>dB</strong> (log) hoặc biên độ tuyến tính. Gọi cửa sổ (Hann, Hamming, …) giảm rò phổ giữa các khung;
+              đường overlay dsp là phổ tham chiếu tính bằng cùng cửa sổ trong code.
+            </p>
           </div>
           <div class="panel-body">
             <div id="spectrum-analyzer"></div>
@@ -126,8 +140,13 @@
           hidden
         >
           <div class="panel-header">
-            <h2>DTMF Decoder</h2>
-            <p>Generate and detect DTMF tones.</p>
+            <h2>Giải mã DTMF</h2>
+            <p class="panel-tagline">Phát và nhận dạng tone điện thoại (Dual-Tone Multi-Frequency).</p>
+            <p class="panel-intro">
+              <strong>DTMF</strong> dùng một tần thấp (hàng) và một tần cao (cột) đồng thời để mã hoá phím (ITU‑T Q.23). Ta dùng
+              <strong>FFT</strong> trên khung có cửa sổ Hann để tìm hai đỉnh phổ khớp dải tần quy định; so sánh biên độ để loại trường hợp chỉ có một tone mạnh.
+              Có thể phát tone nội bộ (oscillator) hoặc thu qua micro — khi bật micro, phần phím ảo phát nội bộ bị khóa để tránh trộn nguồn.
+            </p>
           </div>
           <div class="panel-body">
             <div id="dtmf-decoder"></div>
@@ -142,8 +161,13 @@
           hidden
         >
           <div class="panel-header">
-            <h2>Noise Reduction</h2>
-            <p>Spectral subtraction demo.</p>
+            <h2>Khử nhiễu theo phổ</h2>
+            <p class="panel-tagline">Minh hoạ trừ phổ (spectral subtraction).</p>
+            <p class="panel-intro">
+              Trước hết ghi một đoạn chỉ có <strong>nền nhiễu</strong> để ước lượng phổ biên độ trung bình |N[k]|. Khi có tiếng nói hoặc tín hiệu mong muốn,
+              ta lấy phổ ngắn hạn |Y[k]| và giảm đi α·|N[k]| (tham số alpha điều chỉnh độ «trừ»). Ý tưởng: nhiễu gần cố định theo phổ có thể trừ đi;
+              thực tế cần floor và overlap‑add để giảm tai tiếng âm nhạc — đây là bản demo đơn giản trên AudioWorklet (khung 1024 mẫu).
+            </p>
           </div>
           <div class="panel-body">
             <div id="noise-reduction"></div>
@@ -158,8 +182,13 @@
           hidden
         >
           <div class="panel-header">
-            <h2>Instrument Tuner</h2>
-            <p>Detect pitch and cents.</p>
+            <h2>Lên dây nhạc cụ</h2>
+            <p class="panel-tagline">Ước lượng cao độ (Hz), nốt và sai lệch cents.</p>
+            <p class="panel-intro">
+              <strong>Cao độ</strong> là tần số dao động cơ bản f₀ của âm thanh gần điều hoà. Sau khi đo f₀, ta map sang thang 12 nốt (chuẩn A4 = 440 Hz) và hiển thị
+              <strong>cents</strong> — đơn vị nhỏ trong nhạc lý (1200 cents = một quãng tám). Hai phương pháp: «đỉnh phổ» (FFT + chỉnh đỉnh parabol) hoặc
+              <strong>YIN</strong> trong miền thời gian, thích hợp nốt đơn, ít hài âm.
+            </p>
           </div>
           <div class="panel-body">
             <div id="tuner"></div>
@@ -168,7 +197,7 @@
       </main>
 
       <footer class="app-footer">
-        <span>Audio is processed locally in your browser.</span>
+        <span>Âm thanh được xử lý cục bộ trên trình duyệt của bạn.</span>
       </footer>
     </div>
 

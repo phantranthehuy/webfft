@@ -338,7 +338,7 @@ function mountNoiseReduction(root) {
   secNr.className = "nr-section";
   const titleNr = document.createElement("h3");
   titleNr.className = "nr-section-title";
-  titleNr.textContent = "Bước 2 — Khử nhiễu (spectral subtraction)";
+  titleNr.textContent = "Bước 2 — Khử nhiễu (trừ phổ)";
   const bodyNr = document.createElement("div");
   bodyNr.className = "nr-section-body";
 
@@ -346,7 +346,7 @@ function mountNoiseReduction(root) {
   alphaWrap.className = "nr-field";
   const alphaLabel = document.createElement("span");
   alphaLabel.id = "nr-alpha-label";
-  alphaLabel.textContent = "Alpha (trừ phổ): 2.5";
+  alphaLabel.textContent = "Hệ số α (trừ phổ): 2.5";
   const alphaRange = document.createElement("input");
   alphaRange.type = "range";
   alphaRange.min = String(ALPHA_MIN);
@@ -529,7 +529,7 @@ function mountNoiseReduction(root) {
     "input",
     () => {
     const v = Number(alphaRange.value);
-    alphaLabel.textContent = `Alpha (trừ phổ): ${v.toFixed(2)}`;
+    alphaLabel.textContent = `Hệ số α (trừ phổ): ${v.toFixed(2)}`;
     reducerNode?.port.postMessage({
       type: "alpha",
       value: Math.max(ALPHA_MIN, Math.min(ALPHA_MAX, v)),
@@ -574,7 +574,7 @@ function mountNoiseReduction(root) {
       const pcm = await captureMonoPcm(ctx, micSrc, SAMPLE_SEC);
       const avg = averageNoiseSpectrum(pcm, ctx.sampleRate);
       if (!avg) {
-        statusEl.textContent = "Không đủ mẫu để FFT — thử lại.";
+        statusEl.textContent = "Không đủ mẫu để chạy FFT — thử lại.";
         return;
       }
       noiseProfile = new Float32Array(avg);
@@ -592,7 +592,7 @@ function mountNoiseReduction(root) {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      statusEl.textContent = `Lỗi sample: ${msg}`;
+      statusEl.textContent = `Lỗi ghi mẫu nhiễu: ${msg}`;
     } finally {
       isSampling = false;
       sampleBtn.disabled = false;
@@ -606,11 +606,11 @@ function mountNoiseReduction(root) {
     async () => {
     if (!ctx || !micSrc || !monitorGain) {
       statusEl.textContent =
-        "Chưa có audio: bấm Sample Noise hoặc icon micro góc trái dưới.";
+        "Chưa có luồng âm thanh: bấm «Ghi mẫu nhiễu» hoặc icon micro góc trái dưới.";
       return;
     }
     if (!noiseProfile) {
-      statusEl.textContent = "Cần Sample Noise trước khi bật khử nhiễu.";
+      statusEl.textContent = "Cần «Ghi mẫu nhiễu» trước khi bật khử nhiễu.";
       return;
     }
     nrEnabled = !nrEnabled;
@@ -619,18 +619,19 @@ function mountNoiseReduction(root) {
       if (nrEnabled) {
         toggleBtn.textContent = "Khử nhiễu: tắt";
         await wireNoiseReduction();
-        statusEl.textContent = "Khử nhiễu BẬT (worklet 1024, overlap-add 50%).";
+        statusEl.textContent =
+          "Khử nhiễu BẬT (khung 1024 mẫu trong AudioWorklet, chồng khung 50%).";
       } else {
         toggleBtn.textContent = "Khử nhiễu: bật";
         wireBypassMonitoring();
-        statusEl.textContent = "Khử nhiễu TẮT — micro nối thẳng monitor.";
+        statusEl.textContent = "Khử nhiễu TẮT — micro nối thẳng ra loa (monitor).";
       }
     } catch (e) {
       nrEnabled = false;
       toggleBtn.textContent = "Khử nhiễu: bật";
       toggleBtn.setAttribute("aria-pressed", "false");
       const msg = e instanceof Error ? e.message : String(e);
-      statusEl.textContent = `Không khởi tạo worklet: ${msg}`;
+      statusEl.textContent = `Không khởi tạo AudioWorklet: ${msg}`;
       wireBypassMonitoring();
     }
     },
@@ -643,7 +644,7 @@ function mountNoiseReduction(root) {
     if (!ctx || !monitorGain || isRecording) return;
     isRecording = true;
     recBtn.disabled = true;
-    statusEl.textContent = "Đang ghi (MediaRecorder)…";
+    statusEl.textContent = "Đang ghi đầu ra (MediaRecorder API)…";
 
     recDest = ctx.createMediaStreamDestination();
     try {
@@ -758,7 +759,7 @@ function mountNoiseReduction(root) {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      statusEl.textContent = `Start audio: ${msg}`;
+      statusEl.textContent = `Lỗi mở âm thanh: ${msg}`;
     }
   }
 

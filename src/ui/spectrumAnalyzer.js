@@ -121,12 +121,12 @@ function describeMicStream(stream) {
   const rate =
     typeof settings.sampleRate === "number"
       ? formatHz(settings.sampleRate, 0)
-      : "không báo sr";
+      : "FS không báo";
   const channels =
     typeof settings.channelCount === "number"
-      ? `${settings.channelCount}ch`
-      : "không báo kênh";
-  return `mic ${rate}, ${channels}`;
+      ? `${settings.channelCount} kênh`
+      : "số kênh không báo";
+  return `micro ${rate}, ${channels}`;
 }
 
 /**
@@ -173,7 +173,7 @@ function renderAnalyzerStatus() {
   const peakText = peak
     ? `đỉnh ≈ ${formatHz(peak.hz)} (${peak.db.toFixed(1)} dB)`
     : "chưa có đỉnh rõ";
-  statusEl.textContent = `Nyquist ${formatHz(nyq)} · ctx ${formatHz(ctxAudio.sampleRate, 0)} · ${micInfoText} · ${peakText} · fftSize ${params.fftSize}.`;
+  statusEl.textContent = `Nyquist ${formatHz(nyq)} · FS ngữ cảnh ${formatHz(ctxAudio.sampleRate, 0)} · ${micInfoText} · ${peakText} · cỡ FFT ${params.fftSize}.`;
 }
 
 /**
@@ -377,7 +377,7 @@ function mountSpectrumUi(root) {
   }
 
   const selFft = document.createElement("select");
-  selFft.setAttribute("aria-label", "FFT size");
+  selFft.setAttribute("aria-label", "Kích thước FFT");
   for (const n of [1024, 2048, 4096]) {
     const o = document.createElement("option");
     o.value = String(n);
@@ -392,13 +392,13 @@ function mountSpectrumUi(root) {
       ["2048", "2048"],
       ["4096", "4096"],
     ],
-    "FFT size",
+    "Kích thước FFT",
   );
 
   const selScale = document.createElement("select");
   selScale.setAttribute("aria-label", "Thang biên độ");
   const scales = [
-    { v: "linear", t: "Linear" },
+    { v: "linear", t: "Tuyến tính" },
     { v: "log", t: "Log (dB)" },
   ];
   for (const { v, t } of scales) {
@@ -411,7 +411,7 @@ function mountSpectrumUi(root) {
   const scaleChoice = createChoiceToggle(
     selScale,
     [
-      ["linear", "Linear"],
+      ["linear", "Tuyến tính"],
       ["log", "Log (dB)"],
     ],
     "Thang biên độ",
@@ -420,8 +420,8 @@ function mountSpectrumUi(root) {
   const selMode = document.createElement("select");
   selMode.setAttribute("aria-label", "Kiểu hiển thị");
   const modes = [
-    { v: "bar", t: "Thanh (bar)" },
-    { v: "waterfall", t: "Waterfall" },
+    { v: "bar", t: "Thanh phổ" },
+    { v: "waterfall", t: "Waterfall (phổ thác)" },
   ];
   for (const { v, t } of modes) {
     const o = document.createElement("option");
@@ -432,19 +432,19 @@ function mountSpectrumUi(root) {
   const modeChoice = createChoiceToggle(
     selMode,
     [
-      ["bar", "Thanh"],
+      ["bar", "Thanh phổ"],
       ["waterfall", "Waterfall"],
     ],
     "Kiểu hiển thị",
   );
 
   const selWin = document.createElement("select");
-  selWin.setAttribute("aria-label", "Cửa sổ minh họa dsp");
+  selWin.setAttribute("aria-label", "Cửa sổ và phổ dsp chồng lên");
   for (const { v, t } of [
-    { v: "none", t: "Không overlay" },
-    { v: "hanning", t: "Hann + FFT dsp" },
-    { v: "hamming", t: "Hamming + FFT dsp" },
-    { v: "blackman", t: "Blackman + FFT dsp" },
+    { v: "none", t: "Không chồng phổ" },
+    { v: "hanning", t: "Hann + FFT (dsp)" },
+    { v: "hamming", t: "Hamming + FFT (dsp)" },
+    { v: "blackman", t: "Blackman + FFT (dsp)" },
   ]) {
     const o = document.createElement("option");
     o.value = v;
@@ -453,10 +453,10 @@ function mountSpectrumUi(root) {
   }
 
   toolbar.append(
-    mkField("FFT size", fftChoice),
-    mkField("Thang", scaleChoice),
-    mkField("Hiển thị", modeChoice),
-    mkField("Cửa sổ (dsp)", selWin),
+    mkField("Kích thước FFT", fftChoice),
+    mkField("Thang đo", scaleChoice),
+    mkField("Kiểu hiển thị", modeChoice),
+    mkField("Cửa sổ / chồng dsp", selWin),
   );
 
   canvasWrap = document.createElement("div");
@@ -464,7 +464,7 @@ function mountSpectrumUi(root) {
 
   canvasEl = document.createElement("canvas");
   canvasEl.className = "spectrum-canvas";
-  canvasEl.setAttribute("aria-label", "Spectrum visualization");
+  canvasEl.setAttribute("aria-label", "Đồ họa phổ tần số");
   canvasWrap.appendChild(canvasEl);
 
   statusEl = document.createElement("p");
