@@ -1,5 +1,6 @@
 import {
   createAnalyser,
+  ensureAudioContext,
   ensureMicStream,
   hasLiveMicStream,
   getSharedAudioContext,
@@ -18,11 +19,14 @@ import {
 /** @typedef {'linear' | 'log'} SpectrumScale */
 /** @typedef {'bar' | 'waterfall'} SpectrumMode */
 /** @typedef {'none' | 'hanning' | 'hamming' | 'blackman'} SpectrumWindow */
+/** @typedef {'mic' | 'test'} SpectrumSource */
 
 /** @type {AudioContext | null} */
 let ctxAudio = null;
 /** @type {MediaStreamAudioSourceNode | null} */
 let srcNode = null;
+/** @type {OscillatorNode | null} */
+let oscNode = null;
 /** @type {GainNode | null} */
 let muteOut = null;
 /** @type {AnalyserNode | null} */
@@ -30,12 +34,14 @@ let analyser = null;
 /** @type {number} */
 let rafId = 0;
 
-/** @type {{ fftSize: number, scale: SpectrumScale, mode: SpectrumMode, window: SpectrumWindow }} */
+/** @type {{ fftSize: number, scale: SpectrumScale, mode: SpectrumMode, window: SpectrumWindow, source: SpectrumSource, testHz: number }} */
 let params = {
   fftSize: 2048,
   scale: "log",
   mode: "bar",
   window: "none",
+  source: "mic",
+  testHz: 20000,
 };
 
 /** @type {HTMLCanvasElement | null} */
@@ -44,6 +50,10 @@ let canvasEl = null;
 let canvasWrap = null;
 /** @type {HTMLElement | null} */
 let statusEl = null;
+/** @type {string} */
+let micInfoText = "";
+/** @type {number} */
+let lastStatusAt = 0;
 
 function isAnalyzerPanelVisible() {
   const panel = document.getElementById("panel-analyzer");
@@ -83,6 +93,7 @@ function loop() {
     sampleRate: ctxAudio.sampleRate,
     overlayNorm,
   });
+  renderAnalyzerStatus();
 }
 
 function startLoop() {
@@ -92,7 +103,12 @@ function startLoop() {
 
 function teardownAudio() {
   stopLoop();
-  for (const n of [srcNode, analyser, muteOut]) {
+  try {
+    oscNode?.stop();
+  } catch {
+    /* ignore */
+  }
+  for (const n of [srcNode, oscNode, analyser, muteOut]) {
     try {
       n?.disconnect();
     } catch {
@@ -100,9 +116,76 @@ function teardownAudio() {
     }
   }
   srcNode = null;
+  oscNode = null;
   analyser = null;
   muteOut = null;
   ctxAudio = null;
+  micInfoText = "";
+  lastStatusAt = 0;
+}
+
+/**
+ * @param {MediaStream} stream
+ */
+function describeMicStream(stream) {
+  const track = stream.getAudioTracks()[0];
+  const settings = track?.getSettings?.() ?? {};
+  const rate =
+    typeof settings.sampleRate === "number"
+      ? formatHz(settings.sampleRate, 0)
+      : "không báo sr";
+  const channels =
+    typeof settings.channelCount === "number"
+      ? `${settings.channelCount}ch`
+      : "không báo kênh";
+  return `mic ${rate}, ${channels}`;
+}
+
+/**
+ * @param {AnalyserNode} node
+ * @param {number} sampleRate
+ * @returns {{ hz: number, db: number } | null}
+ */
+function findPeakFrequency(node, sampleRate) {
+  const buf = new Float32Array(node.frequencyBinCount);
+  node.getFloatFrequencyData(buf);
+
+  let k = 1;
+  let peakDb = -Infinity;
+  for (let i = 1; i < buf.length; i++) {
+    if (buf[i] > peakDb) {
+      peakDb = buf[i];
+      k = i;
+    }
+  }
+  if (!Number.isFinite(peakDb)) return null;
+
+  let delta = 0;
+  if (k > 0 && k < buf.length - 1) {
+    const a = buf[k - 1];
+    const b = buf[k];
+    const c = buf[k + 1];
+    const denom = a - 2 * b + c;
+    if (Number.isFinite(denom) && Math.abs(denom) > 1e-9) {
+      delta = Math.max(-0.5, Math.min(0.5, 0.5 * (a - c) / denom));
+    }
+  }
+
+  return { hz: ((k + delta) * sampleRate) / node.fftSize, db: peakDb };
+}
+
+function renderAnalyzerStatus() {
+  if (!statusEl || !ctxAudio || !analyser) return;
+  const now = performance.now();
+  if (now - lastStatusAt < 250) return;
+  lastStatusAt = now;
+
+  const nyq = ctxAudio.sampleRate / 2;
+  const peak = findPeakFrequency(analyser, ctxAudio.sampleRate);
+  const peakText = peak
+    ? `đỉnh ≈ ${formatHz(peak.hz)} (${peak.db.toFixed(1)} dB)`
+    : "chưa có đỉnh rõ";
+  statusEl.textContent = `Nyquist ${formatHz(nyq)} · ctx ${formatHz(ctxAudio.sampleRate, 0)} · ${micInfoText} · ${peakText} · fftSize ${params.fftSize}.`;
 }
 
 /**
@@ -124,9 +207,38 @@ function wireAnalyser(fftSize) {
 
   analyser = createAnalyser(fftSize);
   analyser.smoothingTimeConstant = params.mode === "waterfall" ? 0 : 0.35;
+  analyser.minDecibels = -120;
+  analyser.maxDecibels = -10;
 
   srcNode.connect(analyser);
   analyser.connect(muteOut);
+}
+
+function connectAnalyzerTestTone() {
+  teardownAudio();
+  const context = ensureAudioContext();
+  ctxAudio = context;
+
+  muteOut = context.createGain();
+  muteOut.gain.value = 0;
+  muteOut.connect(context.destination);
+
+  analyser = createAnalyser(params.fftSize);
+  analyser.smoothingTimeConstant = 0;
+  analyser.minDecibels = -120;
+  analyser.maxDecibels = -10;
+
+  oscNode = context.createOscillator();
+  oscNode.type = "sine";
+  oscNode.frequency.setValueAtTime(params.testHz, context.currentTime);
+  oscNode.connect(analyser);
+  analyser.connect(muteOut);
+  oscNode.start();
+
+  micInfoText = `test tone ${formatHz(params.testHz)} nội bộ`;
+  resetSpectrumWaterfall(/** @type {HTMLCanvasElement} */ (canvasEl));
+  renderAnalyzerStatus();
+  startLoop();
 }
 
 /**
@@ -139,6 +251,7 @@ async function connectAnalyzerMic() {
   try {
     const { context, stream } = await ensureMicStream();
     ctxAudio = context;
+    micInfoText = describeMicStream(stream);
 
     muteOut = context.createGain();
     muteOut.gain.value = 0;
@@ -149,10 +262,7 @@ async function connectAnalyzerMic() {
     wireAnalyser(params.fftSize);
     resetSpectrumWaterfall(/** @type {HTMLCanvasElement} */ (canvasEl));
 
-    if (statusEl) {
-      const nyq = context.sampleRate / 2;
-      statusEl.textContent = `Nyquist ${formatHz(nyq)} · fftSize ${params.fftSize} · phổ thời gian thực = Analyser; đường cam = dsp + cửa sổ (nếu chọn).`;
-    }
+    renderAnalyzerStatus();
 
     startLoop();
   } catch (e) {
@@ -170,23 +280,36 @@ async function connectAnalyzerMicIfPrimed() {
   await connectAnalyzerMic();
 }
 
-function applyControlsFromUi(selFft, selScale, selMode, selWin) {
+function applyControlsFromUi(selSource, inputTestHz, selFft, selScale, selMode, selWin) {
+  const prevSource = params.source;
+  const prevFftSize = params.fftSize;
   params.fftSize = Number(selFft.value);
   params.scale = /** @type {SpectrumScale} */ (selScale.value);
   params.mode = /** @type {SpectrumMode} */ (selMode.value);
   params.window = /** @type {SpectrumWindow} */ (selWin.value);
+  params.source = /** @type {SpectrumSource} */ (selSource.value);
+  params.testHz = Math.max(1, Math.min(24000, Number(inputTestHz.value) || 20000));
 
-  if (analyser && ctxAudio && srcNode) {
+  inputTestHz.disabled = params.source !== "test";
+
+  if (params.source === "test") {
+    if (!oscNode || prevSource !== "test" || prevFftSize !== params.fftSize) {
+      connectAnalyzerTestTone();
+      return;
+    }
+    oscNode.frequency.setValueAtTime(params.testHz, ctxAudio?.currentTime ?? 0);
+    micInfoText = `test tone ${formatHz(params.testHz)} nội bộ`;
+  } else if (prevSource === "test") {
+    void connectAnalyzerMic();
+    return;
+  } else if (analyser && ctxAudio && srcNode) {
     wireAnalyser(params.fftSize);
   }
   if (canvasEl) {
     resetSpectrumWaterfall(/** @type {HTMLCanvasElement} */ (canvasEl));
   }
 
-  if (statusEl && ctxAudio) {
-    const nyq = ctxAudio.sampleRate / 2;
-    statusEl.textContent = `Nyquist ${formatHz(nyq)} · fftSize ${params.fftSize} · phổ thời gian thực = Analyser; đường cam = dsp + cửa sổ (nếu chọn).`;
-  }
+  renderAnalyzerStatus();
 }
 
 /**
@@ -261,6 +384,27 @@ function mountSpectrumUi(root) {
     return wrap;
   };
 
+  const selSource = document.createElement("select");
+  selSource.setAttribute("aria-label", "Nguồn analyzer");
+  for (const { v, t } of [
+    { v: "mic", t: "Micro" },
+    { v: "test", t: "Test tone" },
+  ]) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = t;
+    selSource.appendChild(o);
+  }
+
+  const inputTestHz = document.createElement("input");
+  inputTestHz.type = "number";
+  inputTestHz.min = "1";
+  inputTestHz.max = "24000";
+  inputTestHz.step = "1";
+  inputTestHz.value = String(params.testHz);
+  inputTestHz.disabled = true;
+  inputTestHz.setAttribute("aria-label", "Tần số test tone Hz");
+
   const selFft = document.createElement("select");
   selFft.setAttribute("aria-label", "FFT size");
   for (const n of [1024, 2048, 4096]) {
@@ -313,6 +457,8 @@ function mountSpectrumUi(root) {
   }
 
   toolbar.append(
+    mkField("Nguồn", selSource),
+    mkField("Test Hz", inputTestHz),
     mkField("FFT size", selFft),
     mkField("Thang", selScale),
     mkField("Hiển thị", selMode),
@@ -335,15 +481,17 @@ function mountSpectrumUi(root) {
   appendChildren(root, toolbar, canvasWrap, statusEl);
 
   const onParamChange = () => {
-    applyControlsFromUi(selFft, selScale, selMode, selWin);
+    applyControlsFromUi(selSource, inputTestHz, selFft, selScale, selMode, selWin);
   };
 
+  selSource.addEventListener("change", onParamChange, { signal });
+  inputTestHz.addEventListener("change", onParamChange, { signal });
   selFft.addEventListener("change", onParamChange, { signal });
   selScale.addEventListener("change", onParamChange, { signal });
   selMode.addEventListener("change", onParamChange, { signal });
   selWin.addEventListener("change", onParamChange, { signal });
 
-  applyControlsFromUi(selFft, selScale, selMode, selWin);
+  applyControlsFromUi(selSource, inputTestHz, selFft, selScale, selMode, selWin);
 
   const ro = new ResizeObserver(() => {
     if (canvasEl && canvasWrap) {
@@ -353,7 +501,11 @@ function mountSpectrumUi(root) {
   ro.observe(canvasWrap);
 
   const onStartAudioEv = () => {
-    void connectAnalyzerMic();
+    if (params.source === "test") {
+      connectAnalyzerTestTone();
+    } else {
+      void connectAnalyzerMic();
+    }
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
 
