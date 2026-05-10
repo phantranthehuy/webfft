@@ -1,3 +1,5 @@
+import "./ui/dftSimulator.js";
+
 const tabs = Array.from(document.querySelectorAll(".tab"));
 const panels = Array.from(document.querySelectorAll(".panel"));
 const startAudioButton = document.getElementById("start-audio");
