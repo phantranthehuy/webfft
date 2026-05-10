@@ -107,6 +107,79 @@ function niceFreqTicks(nyquistHz) {
 }
 
 /**
+ * Vạch + nhãn Hz (cùng logic bar mode), vẽ trong band dưới waterfall.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{
+ *   wfPadL: number,
+ *   wfPadR: number,
+ *   plotW: number,
+ *   nyquist: number,
+ *   sx: number,
+ *   sy: number,
+ *   axisTopY: number,
+ *   bottomBand: number,
+ *   W: number,
+ *   H: number,
+ * }} p
+ */
+function drawWaterfallFreqAxis(ctx, p) {
+  const {
+    wfPadL,
+    wfPadR,
+    plotW,
+    nyquist,
+    sx,
+    sy,
+    axisTopY,
+    bottomBand,
+    W,
+    H,
+  } = p;
+
+  ctx.fillStyle = "#0b0f13";
+  ctx.fillRect(0, axisTopY, W, bottomBand);
+
+  const tickH = Math.min(Math.max(3 * sy, 4), bottomBand * 0.35);
+  const labelY = axisTopY + tickH + 4 * sy;
+
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 1;
+
+  const ticks = niceFreqTicks(nyquist);
+
+  for (const f of ticks) {
+    const fx = wfPadL + (f / nyquist) * plotW;
+    ctx.beginPath();
+    ctx.moveTo(fx, axisTopY);
+    ctx.lineTo(fx, axisTopY + tickH);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "rgba(159,176,191,0.85)";
+  ctx.font = `${Math.round(11 * sx)}px "IBM Plex Sans",system-ui,sans-serif`;
+  ctx.textBaseline = "top";
+
+  for (let ti = 0; ti < ticks.length; ti++) {
+    const f = ticks[ti];
+    const fx = wfPadL + (f / nyquist) * plotW;
+    const label =
+      ti === ticks.length - 1
+        ? formatHz(nyquist, nyquist >= 1000 ? 1 : 0)
+        : formatHz(f, f >= 1000 ? 1 : 0);
+    if (ti === 0) {
+      ctx.textAlign = "left";
+      ctx.fillText(label, wfPadL, Math.min(labelY, H - 12 * sy));
+    } else if (ti === ticks.length - 1) {
+      ctx.textAlign = "right";
+      ctx.fillText(label, W - wfPadR, Math.min(labelY, H - 12 * sy));
+    } else {
+      ctx.textAlign = "center";
+      ctx.fillText(label, fx, Math.min(labelY, H - 12 * sy));
+    }
+  }
+}
+
+/**
  * @param {HTMLCanvasElement} canvas
  * @param {HTMLElement} container
  */
@@ -283,7 +356,24 @@ export function drawSpectrumFrame(canvas, analyser, opts) {
     return;
   }
 
-  /* Waterfall — cuộn theo đúng pixel thiết bị */
+  /* Waterfall — cuộn phần phổ; band dưới cố định cho trục Hz */
+  const wfPadL = 44 * sx;
+  const wfPadR = 12 * sx;
+  let bottomBand = Math.ceil(30 * sy);
+  bottomBand = Math.min(bottomBand, Math.max(Math.floor(H * 0.28), Math.ceil(18 * sy)));
+  let plotHeight = H - bottomBand;
+  if (plotHeight < sy * 2) {
+    bottomBand = Math.max(Math.ceil(18 * sy), Math.floor(H * 0.22));
+    plotHeight = H - bottomBand;
+  }
+  if (plotHeight < sy) {
+    plotHeight = Math.max(1, Math.floor(H * 0.55));
+    bottomBand = H - plotHeight;
+  }
+
+  const plotW = Math.max(sx, W - wfPadL - wfPadR);
+  const nyquist = sampleRate / 2;
+
   if (!wfInitialized.get(canvas)) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = "#0b0f13";
@@ -293,18 +383,17 @@ export function drawSpectrumFrame(canvas, analyser, opts) {
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   try {
-    ctx.drawImage(canvas, 0, sy, W, H - sy, 0, 0, W, H - sy);
+    const scrollH = Math.max(1, plotHeight - sy);
+    ctx.drawImage(canvas, 0, sy, W, scrollH, 0, 0, W, scrollH);
   } catch {
     ctx.fillStyle = "#0b0f13";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, W, plotHeight);
   }
 
-  const padL = 44 * sx;
-  const plotW = Math.max(sx, W - padL - 12 * sx);
   const barGap = Math.max(0, sx * 0.25);
   const barW = Math.max(sx, (plotW - barGap * (cols - 1)) / cols);
 
-  const rowTop = H - sy;
+  const rowTop = plotHeight - sy;
 
   for (let j = 0; j < cols; j++) {
     const i0 = Math.floor((j * binCount) / cols);
@@ -315,8 +404,21 @@ export function drawSpectrumFrame(canvas, analyser, opts) {
       mag = Math.max(mag, binNorm(scale, byteBuf, floatBuf, i));
     }
     ctx.fillStyle = intensityColor(Math.pow(mag, 0.9));
-    ctx.fillRect(padL + j * (barW + barGap), rowTop, Math.ceil(barW), sy);
+    ctx.fillRect(wfPadL + j * (barW + barGap), rowTop, Math.ceil(barW), sy);
   }
+
+  drawWaterfallFreqAxis(ctx, {
+    wfPadL,
+    wfPadR,
+    plotW,
+    nyquist,
+    sx,
+    sy,
+    axisTopY: plotHeight,
+    bottomBand,
+    W,
+    H,
+  });
 }
 
 /**

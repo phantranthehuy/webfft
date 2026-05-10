@@ -173,12 +173,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .dft-grid {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .dft-controls {
@@ -343,6 +349,23 @@ body {
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--bg-alt);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Sơ đồ cánh bướm D3: viewBox + width 100% — scale theo panel */
+.bf-d3-root {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bf-d3-root svg.butterfly-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  vertical-align: top;
 }
 
 .spectrum-analyzer {
