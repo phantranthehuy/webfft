@@ -22,7 +22,7 @@ function injectStyles() {
   injectedStyle = document.createElement("style");
   injectedStyle.id = "noise-reduction-styles";
   injectedStyle.textContent = `
-    .nr-root { display: flex; flex-direction: column; gap: 16px; max-width: 520px; }
+    .nr-root { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 100%; min-width: 0; }
     .nr-section {
       display: flex;
       flex-direction: column;
@@ -31,12 +31,17 @@ function injectStyles() {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 14px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
     }
     .nr-section-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.02em; }
-    .nr-section-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-    label.nr-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
-    .nr-field input[type="range"] { width: 200px; accent-color: var(--accent); }
-    .nr-readout { font-size: 13px; color: var(--muted); margin: 0; min-height: 2.5em; }
+    .nr-section-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; width: 100%; min-width: 0; }
+    label.nr-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); flex: 1 1 220px; min-width: 0; }
+    .nr-field input[type="range"] { width: 100%; max-width: 100%; accent-color: var(--accent); }
+    .nr-section > button.ghost-button { width: 100%; box-sizing: border-box; }
+    .nr-readout { font-size: 13px; color: var(--muted); margin: 0; min-height: 2.5em; width: 100%; max-width: 100%; }
   `;
   document.head.appendChild(injectedStyle);
 }

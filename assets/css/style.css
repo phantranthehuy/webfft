@@ -355,17 +355,67 @@ body {
   width: auto;
 }
 
-.dft-step-nav {
+.dft-k-step-dock {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 880;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 2px 0 8px;
-  width: 100%;
+  gap: 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(12px);
+}
+
+.dft-k-step-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.dft-k-step-btn:hover:not(:disabled) {
+  transform: scale(1.06);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dft-k-step-btn:focus-visible {
+  outline: 2px solid var(--accent, #6cd49a);
+  outline-offset: 2px;
+}
+
+.dft-k-step-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.dft-k-step-btn img {
+  display: block;
+  width: 24px;
+  height: 24px;
 }
 
 .dft-step-readout {
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 6.5em;
+  text-align: center;
   font-size: 13px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;

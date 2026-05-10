@@ -563,20 +563,38 @@ function mountDftSimulator(root) {
   spanStep.textContent = "DFT: xem từng bước theo k";
   labStep.append(chkStepK, spanStep);
 
-  const stepBar = document.createElement("div");
-  stepBar.className = "dft-step-nav";
-  stepBar.hidden = true;
+  const kStepDock = document.createElement("div");
+  kStepDock.className = "dft-k-step-dock";
+  kStepDock.hidden = true;
+  kStepDock.setAttribute("role", "toolbar");
+  kStepDock.setAttribute("aria-label", "Điều hướng chỉ số k DFT");
+
   const btnStepPrev = document.createElement("button");
   btnStepPrev.type = "button";
-  btnStepPrev.className = "ghost-button";
-  btnStepPrev.textContent = "← k trước";
+  btnStepPrev.className = "dft-k-step-btn";
+  btnStepPrev.setAttribute("aria-label", "k trước");
+  const imgStepPrev = document.createElement("img");
+  imgStepPrev.src = "assets/icons/arrow_left.svg";
+  imgStepPrev.alt = "";
+  imgStepPrev.width = 24;
+  imgStepPrev.height = 24;
+  btnStepPrev.appendChild(imgStepPrev);
+
   const stepReadout = document.createElement("span");
   stepReadout.className = "dft-step-readout";
+
   const btnStepNext = document.createElement("button");
   btnStepNext.type = "button";
-  btnStepNext.className = "ghost-button";
-  btnStepNext.textContent = "k sau →";
-  stepBar.append(btnStepPrev, stepReadout, btnStepNext);
+  btnStepNext.className = "dft-k-step-btn";
+  btnStepNext.setAttribute("aria-label", "k sau");
+  const imgStepNext = document.createElement("img");
+  imgStepNext.src = "assets/icons/arrow_right.svg";
+  imgStepNext.alt = "";
+  imgStepNext.width = 24;
+  imgStepNext.height = 24;
+  btnStepNext.appendChild(imgStepNext);
+
+  kStepDock.append(btnStepPrev, stepReadout, btnStepNext);
 
   /** @type {{ detail: ReturnType<typeof dftStepsFromSequence>, seq0: Complex[], N: number } | null} */
   let dftStepSession = null;
@@ -617,7 +635,7 @@ function mountDftSimulator(root) {
    * @param {Float64Array} reals — phần thực của seq0 (dùng cho fft() khi tín hiệu thuần thực)
    * @param {boolean} allReal
    */
-  function appendDftCompareAndButterfly(
+  function appendCmpHostComparison(
     finalSpectrum,
     seq0,
     reals,
@@ -646,16 +664,42 @@ function mountDftSimulator(root) {
         ),
       );
     }
+  }
 
-    if (isPowerOfTwo(N)) {
-      if (algo === "DFT") {
-        const data = generateButterflyData(N, "DIT");
-        bfHost.appendChild(renderButterflySvg(data));
-      } else {
-        const data = generateButterflyData(N, fftKind);
-        bfHost.appendChild(renderButterflySvg(data));
-      }
-    }
+  /**
+   * @param {number} N
+   * @param {"DFT" | "FFT"} algo
+   * @param {"DIT" | "DIF"} fftKind
+   */
+  function appendBfHostButterfly(N, algo, fftKind) {
+    if (!isPowerOfTwo(N)) return;
+    clearHost(bfHost);
+    const data =
+      algo === "DFT"
+        ? generateButterflyData(N, "DIT")
+        : generateButterflyData(N, fftKind);
+    bfHost.appendChild(renderButterflySvg(data));
+  }
+
+  function appendDftCompareAndButterfly(
+    finalSpectrum,
+    seq0,
+    reals,
+    allReal,
+    N,
+    algo,
+    fftKind,
+  ) {
+    appendCmpHostComparison(
+      finalSpectrum,
+      seq0,
+      reals,
+      allReal,
+      N,
+      algo,
+      fftKind,
+    );
+    appendBfHostButterfly(N, algo, fftKind);
   }
 
   function finishDftStepSession() {
@@ -665,7 +709,7 @@ function mountDftSimulator(root) {
     const reals = Float64Array.from(seq0.map((c) => c.re));
     const allReal = isEffectivelyReal(seq0);
     resHost.appendChild(renderSpectrumRow(specFromBlocks));
-    appendDftCompareAndButterfly(
+    appendCmpHostComparison(
       specFromBlocks,
       seq0,
       reals,
@@ -675,7 +719,7 @@ function mountDftSimulator(root) {
       "DIT",
     );
     dftStepSession = null;
-    stepBar.hidden = true;
+    kStepDock.hidden = true;
   }
 
   btnStepPrev.addEventListener(
@@ -708,7 +752,7 @@ function mountDftSimulator(root) {
     () => {
       if (!chkStepK.checked) {
         dftStepSession = null;
-        stepBar.hidden = true;
+        kStepDock.hidden = true;
       }
     },
     { signal },
@@ -721,7 +765,7 @@ function mountDftSimulator(root) {
   btn.textContent = "Compute";
 
   controlsTop.append(labMode, labN, labAlgo, labFft);
-  controlsStepWrap.append(labStep, stepBar);
+  controlsStepWrap.append(labStep);
   controlsInputWrap.append(labIn);
   computeRow.append(btn);
   controlsStack.append(
@@ -787,7 +831,7 @@ function mountDftSimulator(root) {
     secCmp,
     secBf,
   );
-  root.appendChild(grid);
+  root.append(grid, kStepDock);
 
   function fillNOptions() {
     const algo = selAlgo.value;
@@ -817,7 +861,7 @@ function mountDftSimulator(root) {
       if (chkStepK.disabled) {
         chkStepK.checked = false;
         dftStepSession = null;
-        stepBar.hidden = true;
+        kStepDock.hidden = true;
       }
       algoChoice.sync();
     },
@@ -860,14 +904,15 @@ function mountDftSimulator(root) {
         if (chkStepK.checked) {
           dftStepSession = { detail, seq0, N };
           dftStepIdx = 0;
-          stepBar.hidden = false;
+          kStepDock.hidden = false;
           refreshDftStepUi();
+          appendBfHostButterfly(N, "DFT", "DIT");
           if (N === 1) {
             finishDftStepSession();
           }
         } else {
           dftStepSession = null;
-          stepBar.hidden = true;
+          kStepDock.hidden = true;
           for (const block of detail) {
             stepsHost.appendChild(renderOneDftBlock(block));
           }
