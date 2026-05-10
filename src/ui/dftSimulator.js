@@ -767,7 +767,7 @@ function mountDftSimulator(root) {
   btn.type = "button";
   btn.className = "ghost-button dft-compute-primary";
   btn.id = "dft-compute";
-  btn.textContent = "Compute";
+  btn.textContent = "Tính toán";
 
   controlsTop.append(labMode, labN, labAlgo, labFft);
   controlsStepWrap.append(labStep);
@@ -794,6 +794,7 @@ function mountDftSimulator(root) {
 
   const secTw = document.createElement("section");
   secTw.className = "dft-section";
+  secTw.hidden = true;
   secTw.innerHTML = `<h3 class="dft-section-title">Ma trận twiddle W<sub>N</sub><sup>kn</sup></h3>`;
   const twHost = document.createElement("div");
   twHost.className = "dft-scroll";
@@ -801,6 +802,7 @@ function mountDftSimulator(root) {
 
   const secSteps = document.createElement("section");
   secSteps.className = "dft-section";
+  secSteps.hidden = true;
   secSteps.innerHTML = `<h3 class="dft-section-title">Từng bước</h3>`;
   const stepsHost = document.createElement("div");
   stepsHost.className = "dft-steps";
@@ -808,6 +810,7 @@ function mountDftSimulator(root) {
 
   const secRes = document.createElement("section");
   secRes.className = "dft-section";
+  secRes.hidden = true;
   secRes.innerHTML = `<h3 class="dft-section-title">Kết quả cuối</h3>`;
   const resHost = document.createElement("div");
   resHost.id = "dft-final";
@@ -815,6 +818,7 @@ function mountDftSimulator(root) {
 
   const secCmp = document.createElement("section");
   secCmp.className = "dft-section";
+  secCmp.hidden = true;
   secCmp.innerHTML = `<h3 class="dft-section-title">So với FFT radix-2 (dsp)</h3>`;
   const cmpHost = document.createElement("div");
   cmpHost.id = "dft-compare";
@@ -822,10 +826,20 @@ function mountDftSimulator(root) {
 
   const secBf = document.createElement("section");
   secBf.className = "dft-section";
+  secBf.hidden = true;
   secBf.innerHTML = `<h3 class="dft-section-title">Sơ đồ bướm (SVG)</h3>`;
   const bfHost = document.createElement("div");
   bfHost.className = "dft-butterfly-host";
   secBf.appendChild(bfHost);
+
+  function setResultSectionsVisible(visible) {
+    const hidden = !visible;
+    secTw.hidden = hidden;
+    secSteps.hidden = hidden;
+    secRes.hidden = hidden;
+    secCmp.hidden = hidden;
+    secBf.hidden = hidden;
+  }
 
   grid.append(
     controlsStack,
@@ -904,6 +918,7 @@ function mountDftSimulator(root) {
     clearHost(resHost);
     clearHost(cmpHost);
     clearHost(bfHost);
+    setResultSectionsVisible(true);
 
     try {
       const rawN = Number(String(inputN.value).trim());
@@ -1005,6 +1020,7 @@ function mountDftSimulator(root) {
       errBox.hidden = false;
       errBox.textContent =
         e instanceof Error ? e.message : "Đã xảy ra lỗi không xác định.";
+      setResultSectionsVisible(false);
     }
     },
     { signal },
