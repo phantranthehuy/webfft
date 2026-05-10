@@ -50,6 +50,22 @@ function twiddleExponent(N, type, stageIndex, bf) {
   return j * (N / groupSize);
 }
 
+/**
+ * Nhãn W_m^k trên sơ đồ: DIT dùng đúng kích thước bướm con m = 2^(stage+1) và mũ j trùng dữ liệu twiddle;
+ * DIF giữ W_N^k (theo `twiddleExponent`).
+ *
+ * @returns {{ base: number, exp: number }}
+ */
+function twiddleLabelBaseExp(N, type, stageIndex, bf) {
+  if (type === "DIT") {
+    const m = 1 << (stageIndex + 1);
+    const exp = bf.topWire % m;
+    return { base: m, exp };
+  }
+  const exp = Math.round(twiddleExponent(N, type, stageIndex, bf));
+  return { base: N, exp };
+}
+
 const UNICODE_SUB_DIGITS = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"];
 const UNICODE_SUP_DIGITS = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
 
@@ -75,7 +91,7 @@ function formatTwiddleUnicode(N, kInt) {
  * Nhãn twiddle trên nhánh chéo — `<g translate>` + `<text>` một dòng (ổn định hơn khi có zoom).
  * @param {import("d3").Selection} parentG
  */
-function appendTwiddleSvgText(parentG, N, kInt, cx, cy) {
+function appendTwiddleSvgText(parentG, twiddleBase, twiddleExp, cx, cy) {
   const lg = parentG
     .append("g")
     .attr("class", "bf-twiddle-g")
@@ -85,11 +101,12 @@ function appendTwiddleSvgText(parentG, N, kInt, cx, cy) {
     .attr("text-anchor", "middle")
     .attr("font-size", 13)
     .attr("font-weight", "600")
-    .text(formatTwiddleUnicode(N, kInt));
+    .attr("paint-order", "stroke fill")
+    .text(formatTwiddleUnicode(twiddleBase, twiddleExp));
 }
 
-/** Nhánh chéo xuống: twiddle đặt dưới nhánh, gần giữa để dễ đọc. */
-const TWIDDLE_ON_DOWN_DIAG_T = 0.58;
+/** Twiddle trên nhánh đầu vào dưới (trước nút bướm): đoạn (x0,yb)→(x1,yt), gần nút trái. */
+const TWIDDLE_ON_LOWER_INPUT_DIAG_T = 0.3;
 /** Nhãn trừ đặt ngay trước nút cộng/trừ phía dưới. */
 const MINUS_NEAR_RIGHT_T = 0.9;
 
@@ -254,7 +271,7 @@ export function drawButterfly(containerId, data, opts = {}) {
       .bf-node { fill: #f4f8fb; stroke: rgba(17,23,29,0.65); stroke-width: 0.7; }
       .bf-cap { fill: #d9e5ee; font-size: 12px; font-weight: 600; }
       .bf-twiddle-g { pointer-events: none; }
-      .bf-twiddle { fill: #f1f7fb; font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; }
+      .bf-twiddle { fill: #e8f7ff; stroke: rgba(17,23,29,0.92); stroke-width: 3px; font-family: "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif; }
       .bf-minus { fill: #f1f7fb; font-size: 12px; font-weight: 700; }
       .bf-x-diag { stroke: #35d6df; stroke-width: 1.45; fill: none; opacity: 0.96; }
       .bf-x-diag.is-dim { stroke: rgba(47,210,168,0.35); }
@@ -421,13 +438,11 @@ export function drawButterfly(containerId, data, opts = {}) {
     for (const bf of stageBlock.butterflies) {
       const yt = wireY(bf.topWire);
       const yb = wireY(bf.bottomWire);
-      const kExp = twiddleExponent(N, type, sIdx, bf);
-      const kInt = Math.round(kExp);
+      const { base: twBase, exp: twExp } = twiddleLabelBaseExp(N, type, sIdx, bf);
 
-      const twx =
-        x0 + TWIDDLE_ON_DOWN_DIAG_T * (x1 - x0);
-      const twy =
-        yt + TWIDDLE_ON_DOWN_DIAG_T * (yb - yt);
+      const tTw = TWIDDLE_ON_LOWER_INPUT_DIAG_T;
+      const twx = x0 + tTw * (x1 - x0);
+      const twy = yb + tTw * (yt - yb);
 
       const mx = x0 + MINUS_NEAR_RIGHT_T * (x1 - x0);
       const my = yb;
@@ -449,7 +464,7 @@ export function drawButterfly(containerId, data, opts = {}) {
         .attr("text-anchor", "middle")
         .text("−1");
 
-      appendTwiddleSvgText(g, N, kInt, twx, twy);
+      appendTwiddleSvgText(g, twBase, twExp, twx, twy);
 
       const fmt = (z) => z.toFixed(4).replace(/\.?0+$/, "") || "0";
       const twStr = `${fmt(bf.twiddleReal)} ${bf.twiddleImag >= 0 ? "+" : "−"} ${fmt(Math.abs(bf.twiddleImag))}i`;
@@ -467,7 +482,7 @@ export function drawButterfly(containerId, data, opts = {}) {
         g.selectAll(".bf-x-diag").classed("is-dim", false);
 
         tooltip.style.display = "block";
-        const wTex = `W_{${N}}^{${kInt}}`;
+        const wTex = `W_{${twBase}}^{${twExp}}`;
         const eqTop = katexHtml(`A^{\\prime} = A + ${wTex} \\cdot B`);
         const eqBot = katexHtml(`B^{\\prime} = A - ${wTex} \\cdot B`);
         const wApprox = katexHtml(wTex);
