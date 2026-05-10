@@ -275,7 +275,9 @@ body {
 }
 
 .dft-field textarea,
-.dft-field select {
+.dft-field select,
+.dft-field input[type="number"] {
+  box-sizing: border-box;
   width: 100%;
   min-height: 48px;
   border-radius: 10px;
