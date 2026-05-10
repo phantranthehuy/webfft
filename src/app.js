@@ -1,4 +1,7 @@
 import "./ui/dftSimulator.js";
+import "./ui/spectrumAnalyzer.js";
+import "./ui/dtmfDecoder.js";
+import "./ui/noiseReduction.js";
 
 const tabs = Array.from(document.querySelectorAll(".tab"));
 const panels = Array.from(document.querySelectorAll(".panel"));

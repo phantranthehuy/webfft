@@ -59,29 +59,6 @@ function twiddleTex(N, k) {
 
 /**
  * @param {string} tex
- * @param {number} fontPx
- */
-function twiddleMarkup(tex, fontPx) {
-  const katex = globalThis.katex;
-  if (katex?.renderToString) {
-    return katex.renderToString(tex, {
-      throwOnError: false,
-      displayMode: false,
-    });
-  }
-  return `<span style="font-size:${fontPx}px;font-family:Georgia,serif;">W<sub>${N}</sub><sup>${tex.match(/\^\{(\d+)\}/)?.[1] ?? ""}</sup></span>`.replace(
-    "<span",
-    "<span",
-  );
-}
-
-/** Fix up plain fallback — use simple W_N^k text without broken regex */
-function twiddlePlainHtml(N, k, fontPx) {
-  return `<span style="font-size:${fontPx}px;font-family:IBM Plex Sans,system-ui,sans-serif;">W<sub>${N}</sub><sup>${k}</sup></span>`;
-}
-
-/**
- * @param {string} tex
  * @param {number} N
  * @param {number} k
  * @param {number} fontPx
@@ -94,26 +71,53 @@ function twiddleLabelInner(tex, N, k, fontPx) {
       displayMode: false,
     });
   }
-  return twiddlePlainHtml(N, k, fontPx);
+  return `<span style="font-size:${fontPx}px;font-family:IBM Plex Sans,system-ui,sans-serif;">W<sub>${N}</sub><sup>${k}</sup></span>`;
 }
 
 /**
- * Vẽ sơ đồ cánh bướm FFT với D3 + SVG: lưới stage/wire, nút tròn, đường chéo có mũi tên,
- * nhãn −1 / twiddle, zoom–pan, tooltip khi hover.
+ * @param {string | HTMLElement} containerId
+ * @returns {HTMLElement}
+ */
+function resolveContainer(containerId) {
+  if (typeof containerId === "string") {
+    const el = document.getElementById(containerId);
+    if (!el) {
+      throw new Error(`drawButterfly: không tìm thấy phần tử #${containerId}`);
+    }
+    return el;
+  }
+  if (containerId instanceof HTMLElement) {
+    return containerId;
+  }
+  throw new Error("drawButterfly: container phải là id (string) hoặc HTMLElement");
+}
+
+/**
+ * Hậu tố duy nhất cho marker SVG (tránh trùng khi nhiều biểu đồ).
+ * @param {HTMLElement} root
+ */
+function uniqueSuffix(root) {
+  if (!root.id) {
+    root.id = `bf-d3-${Math.random().toString(36).slice(2, 11)}`;
+  }
+  return root.id.replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
+/**
+ * Vẽ sơ đồ cánh bướm FFT với D3 + SVG: lưới stage/wire (120px / 40px), nút tròn,
+ * đường chéo có mũi tên, nhãn −1 / twiddle (KaTeX nếu có), zoom–pan, tooltip khi hover.
  *
- * @param {string} containerId — `id` của phần tử chứa (thường là một `<div>`).
+ * @param {string | HTMLElement} containerId — `id` của phần tử chứa, hoặc chính phần tử `<div>`.
  * @param {ButterflyData} data — kết quả `generateButterflyData(N, type)`.
  * @param {{
  *   stageGap?: number,
  *   wireGap?: number,
  *   margin?: { top?: number, right?: number, bottom?: number, left?: number },
  * }} [opts]
+ * @returns {SVGSVGElement}
  */
 export function drawButterfly(containerId, data, opts = {}) {
-  const root = document.getElementById(containerId);
-  if (!root) {
-    throw new Error(`drawButterfly: không tìm thấy phần tử #${containerId}`);
-  }
+  const root = resolveContainer(containerId);
 
   const stageGap = opts.stageGap ?? DEFAULT_STAGE_GAP;
   const wireGap = opts.wireGap ?? DEFAULT_WIRE_GAP;
@@ -138,6 +142,9 @@ export function drawButterfly(containerId, data, opts = {}) {
   root.style.position = "relative";
   root.style.minHeight = "240px";
 
+  const suffix = uniqueSuffix(root);
+  const arrowMarkerId = `bf-arrow-${suffix}`;
+
   const tooltip = document.createElement("div");
   tooltip.className = "bf-d3-tooltip";
   tooltip.setAttribute("role", "tooltip");
@@ -160,7 +167,7 @@ export function drawButterfly(containerId, data, opts = {}) {
   root.appendChild(tooltip);
 
   const svg = d3
-    .createSvg()
+    .create("svg")
     .attr("role", "img")
     .attr(
       "aria-label",
@@ -176,7 +183,7 @@ export function drawButterfly(containerId, data, opts = {}) {
 
   defs
     .append("marker")
-    .attr("id", `bf-arrow-${containerId.replace(/[^a-zA-Z0-9]/g, "")}`)
+    .attr("id", arrowMarkerId)
     .attr("viewBox", "0 0 10 10")
     .attr("refX", 9)
     .attr("refY", 5)
@@ -187,7 +194,7 @@ export function drawButterfly(containerId, data, opts = {}) {
     .attr("d", "M 0 0 L 10 5 L 0 10 z")
     .attr("fill", "var(--bf-arrow, #2fd2a8)");
 
-  const arrowId = `url(#bf-arrow-${containerId.replace(/[^a-zA-Z0-9]/g, "")})`;
+  const arrowUrl = `url(#${arrowMarkerId})`;
 
   const inner = svg.append("g").attr("class", "bf-zoom-layer");
 
@@ -238,8 +245,9 @@ export function drawButterfly(containerId, data, opts = {}) {
     }
   }
 
-  /** @type {{ left: string, right: string }[]} */
+  /** @type {string[]} */
   const leftLabels = [];
+  /** @type {string[]} */
   const rightLabels = [];
   for (let i = 0; i < N; i++) {
     if (type === "DIT") {
@@ -285,20 +293,15 @@ export function drawButterfly(containerId, data, opts = {}) {
 
       const g = inner.append("g").attr("class", "bf-butterfly");
 
-      const pathMinus = g
-        .append("path")
+      g.append("path")
         .attr("class", "bf-x-diag")
         .attr("d", `M ${x0} ${yt} L ${x1} ${yb}`)
-        .attr("marker-end", arrowId);
+        .attr("marker-end", arrowUrl);
 
-      const pathTw = g
-        .append("path")
+      g.append("path")
         .attr("class", "bf-x-diag")
         .attr("d", `M ${x0} ${yb} L ${x1} ${yt}`)
-        .attr("marker-end", arrowId);
-
-      pathMinus.attr("data-role", "minus-branch");
-      pathTw.attr("data-role", "twiddle-branch");
+        .attr("marker-end", arrowUrl);
 
       const tMinus = 0.72;
       const lx = x0 + tMinus * (x1 - x0);
@@ -341,20 +344,19 @@ export function drawButterfly(containerId, data, opts = {}) {
         g.selectAll(".bf-x-diag").classed("is-dim", false);
 
         tooltip.style.display = "block";
+        const wNk = `W<sub>${N}</sub><sup>${kInt}</sup>`;
         tooltip.innerHTML = [
           `<div style="font-weight:600;margin-bottom:6px;color:#b8fce9;">Butterfly · stage ${sIdx + 1}/${numStages}</div>`,
-          `<div>Wires: top <code>${bf.topWire}</code>, bottom <code>${bf.bottomWire}</code></div>`,
-          `<div style="margin-top:8px;"><code>A′ = A + ${tex.replace(/_/g, "")} · B</code></div>`,
-          `<div><code>B′ = A − ${tex.replace(/_/g, "")} · B</code></div>`,
-          `<div style="margin-top:8px;color:#9fb0bf;font-size:12px;">${tex} ≈ ${twStr}</div>`,
+          `<div>Dây trên <code>${bf.topWire}</code>, dây dưới <code>${bf.bottomWire}</code></div>`,
+          `<div style="margin-top:8px;"><code>A′ = A + ${wNk} · B</code></div>`,
+          `<div><code>B′ = A − ${wNk} · B</code></div>`,
+          `<div style="margin-top:8px;color:#9fb0bf;font-size:12px;">W<sub>${N}</sub><sup>${kInt}</sup> ≈ ${twStr}</div>`,
         ].join("");
 
         const pad = 12;
         const rect = root.getBoundingClientRect();
-        let px = event.clientX - rect.left + pad;
-        let py = event.clientY - rect.top + pad;
-        tooltip.style.left = `${px}px`;
-        tooltip.style.top = `${py}px`;
+        tooltip.style.left = `${event.clientX - rect.left + pad}px`;
+        tooltip.style.top = `${event.clientY - rect.top + pad}px`;
       });
 
       g.on("mousemove", (event) => {
@@ -383,4 +385,18 @@ export function drawButterfly(containerId, data, opts = {}) {
   root.append(svg.node());
 
   return /** @type {SVGSVGElement} */ (svg.node());
+}
+
+/**
+ * Tạo một `<div>` chứa sơ đồ — tiện khi chưa có id trong DOM (vd. `appendChild` sau).
+ *
+ * @param {ButterflyData} data
+ * @param {Parameters<typeof drawButterfly>[2]} [opts]
+ * @returns {HTMLDivElement}
+ */
+export function renderButterflySvg(data, opts) {
+  const wrap = document.createElement("div");
+  wrap.className = "bf-d3-root";
+  drawButterfly(wrap, data, opts);
+  return wrap;
 }

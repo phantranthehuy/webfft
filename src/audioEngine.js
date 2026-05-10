@@ -85,17 +85,28 @@ function stopSharedStream() {
 }
 
 /**
+ * Tạo hoặc trả về AudioContext dùng chung (không mở micro).
+ * Gọi trong handler người dùng trước khi phát Oscillator nếu chưa bấm Start Audio.
+ *
+ * @returns {AudioContext}
+ */
+export function ensureAudioContext() {
+  if (!sharedContext) {
+    sharedContext = new AudioContext();
+  }
+  ensureResumeUi(sharedContext);
+  void sharedContext.resume();
+  return sharedContext;
+}
+
+/**
  * Khởi tạo (hoặc tái dùng) AudioContext và mở luồng micro.
  * Nên gọi từ handler người dùng (đặc biệt trên iOS).
  *
  * @returns {Promise<{ context: AudioContext, stream: MediaStream }>}
  */
 export async function initAudio() {
-  if (!sharedContext) {
-    sharedContext = new AudioContext();
-  }
-
-  ensureResumeUi(sharedContext);
+  ensureAudioContext();
 
   /* Giữ user gesture: resume trước mọi await dài. */
   void sharedContext.resume();

@@ -304,6 +304,69 @@ body {
   background: var(--bg-alt);
 }
 
+.spectrum-analyzer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.spectrum-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.spectrum-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.spectrum-field span {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.spectrum-field select {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--text);
+  padding: 10px 12px;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 14px;
+}
+
+.spectrum-canvas-wrap {
+  width: 100%;
+  min-height: min(42vh, 420px);
+  aspect-ratio: 16 / 9;
+  max-height: 520px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  overflow: hidden;
+}
+
+.spectrum-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  vertical-align: middle;
+}
+
+.spectrum-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 #dft-compute {
   justify-self: start;
 }
