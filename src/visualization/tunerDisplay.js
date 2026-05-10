@@ -2,7 +2,17 @@
  * Vẽ đồng hồ cents (thang ngang) và tên nốt lên canvas.
  */
 
-/** @typedef {{ active: boolean, hz?: number, note?: string, cents?: number, peakDb?: number }} TunerDisplayState */
+/**
+ * @typedef {{
+ *   active: boolean,
+ *   hz?: number,
+ *   note?: string,
+ *   cents?: number,
+ *   peakDb?: number,
+ *   idleHint?: string,
+ *   methodLabel?: string,
+ * }} TunerDisplayState
+ */
 
 /**
  * @param {HTMLCanvasElement} canvas
@@ -60,7 +70,11 @@ export function drawTunerFrame(canvas, state) {
     ctx.font = `600 ${Math.round(noteSize * 0.55)}px "IBM Plex Sans", system-ui, sans-serif`;
     ctx.fillText("—", cssW / 2, centerY);
     ctx.font = `400 14px "IBM Plex Sans", system-ui, sans-serif`;
-    ctx.fillText("Tín hiệu yếu hoặc im lặng (< −40 dB)", cssW / 2, centerY + noteSize * 0.55);
+    ctx.fillText(
+      state.idleHint ?? "Tín hiệu yếu hoặc im lặng (< −40 dB)",
+      cssW / 2,
+      centerY + noteSize * 0.55,
+    );
     if (state.peakDb !== undefined && Number.isFinite(state.peakDb)) {
       ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
       ctx.fillText(`Đỉnh dải 60–2000 Hz ≈ ${state.peakDb.toFixed(1)} dB`, cssW / 2, cssH - pad);
@@ -79,7 +93,10 @@ export function drawTunerFrame(canvas, state) {
 
   ctx.fillStyle = muted;
   ctx.font = `500 15px "IBM Plex Mono", ui-monospace, monospace`;
-  ctx.fillText(`${hz.toFixed(1)} Hz`, cssW / 2, centerY + noteSize * 0.42);
+  const hzLine = state.methodLabel
+    ? `${hz.toFixed(1)} Hz · ${state.methodLabel}`
+    : `${hz.toFixed(1)} Hz`;
+  ctx.fillText(hzLine, cssW / 2, centerY + noteSize * 0.42);
 
   const gaugeTop = centerY + noteSize * 0.72;
   const gaugeH = 44;

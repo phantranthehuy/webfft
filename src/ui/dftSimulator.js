@@ -26,7 +26,7 @@ function reverseBits(i, bits) {
 }
 
 /**
- * Giống `fft.js`: W_m^j = exp(−2πj·j/m) lưu dạng Complex(cos θ, sin θ), θ = −2πj/m.
+ * Giống `fft.js` (dsp): W_m^j = exp(−2πj·j/m) lưu dạng Complex(cos θ, sin θ), θ = −2πj/m.
  * @param {number} N
  * @returns {Map<number, Complex[]>}
  */
@@ -360,13 +360,158 @@ function mountDftSimulator(root) {
   selFft.disabled = true;
   labFft.appendChild(selFft);
 
+  const labStep = document.createElement("label");
+  labStep.className = "dft-field dft-field-row";
+  const chkStepK = document.createElement("input");
+  chkStepK.type = "checkbox";
+  chkStepK.id = "dft-step-k";
+  const spanStep = document.createElement("span");
+  spanStep.textContent = "DFT: xem từng bước theo k";
+  labStep.append(chkStepK, spanStep);
+
+  const stepBar = document.createElement("div");
+  stepBar.className = "dft-step-nav";
+  stepBar.hidden = true;
+  const btnStepPrev = document.createElement("button");
+  btnStepPrev.type = "button";
+  btnStepPrev.className = "ghost-button";
+  btnStepPrev.textContent = "← k trước";
+  const stepReadout = document.createElement("span");
+  stepReadout.className = "dft-step-readout";
+  const btnStepNext = document.createElement("button");
+  btnStepNext.type = "button";
+  btnStepNext.className = "ghost-button";
+  btnStepNext.textContent = "k sau →";
+  stepBar.append(btnStepPrev, stepReadout, btnStepNext);
+
+  /** @type {{ detail: ReturnType<typeof dftSteps>, samples: Float64Array, N: number } | null} */
+  let dftStepSession = null;
+  /** @type {number} */
+  let dftStepIdx = 0;
+
+  function renderOneDftBlock(block) {
+    const blockEl = document.createElement("div");
+    blockEl.className = "dft-step-block";
+    const h = document.createElement("h4");
+    h.className = "dft-step-heading";
+    h.textContent = `k = ${block.k}`;
+    blockEl.appendChild(h);
+    const ol = document.createElement("ol");
+    ol.className = "dft-mini-steps";
+    for (const p of block.partials) {
+      const li = document.createElement("li");
+      li.textContent = `n = ${p.n}: đóng góp ${fmtC(p.term)} → tích lũy ${fmtC(p.acc)}`;
+      ol.appendChild(li);
+    }
+    blockEl.appendChild(ol);
+    return blockEl;
+  }
+
+  function refreshDftStepUi() {
+    if (!dftStepSession) return;
+    const { detail, N } = dftStepSession;
+    clearHost(stepsHost);
+    stepsHost.appendChild(renderOneDftBlock(detail[dftStepIdx]));
+    stepReadout.textContent = `k = ${dftStepIdx} / ${N - 1}`;
+    btnStepPrev.disabled = dftStepIdx <= 0;
+    btnStepNext.disabled = dftStepIdx >= N - 1;
+  }
+
+  function appendDftCompareAndButterfly(
+    finalSpectrum,
+    samples,
+    N,
+    algo,
+    fftKind,
+  ) {
+    if (isPowerOfTwo(N)) {
+      const refSpectrum = fft(samples);
+      const err = maxAbsDiff(finalSpectrum, refSpectrum);
+      cmpHost.appendChild(
+        document.createTextNode(
+          algo === "DFT"
+            ? `Sai số cực đại so với fft(samples) trong dsp: ${err.toExponential(4)} (DFT vs FFT radix-2).`
+            : `Sai số cực đại so với fft(samples) trong dsp: ${err.toExponential(4)} (${fftKind} mô phỏng vs FFT radix-2 DIT).`,
+        ),
+      );
+    } else {
+      cmpHost.appendChild(
+        document.createTextNode(
+          "FFT radix-2 trong dsp chỉ hỗ trợ N lũy thừa của 2 — không so sánh được.",
+        ),
+      );
+    }
+
+    if (isPowerOfTwo(N)) {
+      if (algo === "DFT") {
+        const data = generateButterflyData(N, "DIT");
+        bfHost.appendChild(
+          document.createTextNode(
+            "Gợi ý: với DFT bạn vẫn có thể xem cấu trúc bướm DIT màn hình dưới.",
+          ),
+        );
+        bfHost.appendChild(document.createElement("br"));
+        bfHost.appendChild(renderButterflySvg(data));
+      } else {
+        const data = generateButterflyData(N, fftKind);
+        bfHost.appendChild(renderButterflySvg(data));
+      }
+    }
+  }
+
+  function finishDftStepSession() {
+    if (!dftStepSession) return;
+    const { detail, samples, N } = dftStepSession;
+    const specFromBlocks = detail.map((b) => b.Xk);
+    resHost.appendChild(renderSpectrumRow(specFromBlocks));
+    appendDftCompareAndButterfly(specFromBlocks, samples, N, "DFT", "DIT");
+    dftStepSession = null;
+    stepBar.hidden = true;
+  }
+
+  btnStepPrev.addEventListener(
+    "click",
+    () => {
+      if (!dftStepSession || dftStepIdx <= 0) return;
+      dftStepIdx--;
+      refreshDftStepUi();
+    },
+    { signal },
+  );
+
+  btnStepNext.addEventListener(
+    "click",
+    () => {
+      if (!dftStepSession) return;
+      const { N } = dftStepSession;
+      if (dftStepIdx >= N - 1) return;
+      dftStepIdx++;
+      refreshDftStepUi();
+      if (dftStepIdx === N - 1) {
+        finishDftStepSession();
+      }
+    },
+    { signal },
+  );
+
+  chkStepK.addEventListener(
+    "change",
+    () => {
+      if (!chkStepK.checked) {
+        dftStepSession = null;
+        stepBar.hidden = true;
+      }
+    },
+    { signal },
+  );
+
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "ghost-button";
   btn.id = "dft-compute";
   btn.textContent = "Compute";
 
-  controls.append(labIn, labN, labAlgo, labFft, btn);
+  controls.append(labIn, labN, labAlgo, labFft, labStep, stepBar, btn);
 
   const errBox = document.createElement("div");
   errBox.className = "dft-error";
@@ -395,7 +540,7 @@ function mountDftSimulator(root) {
 
   const secCmp = document.createElement("section");
   secCmp.className = "dft-section";
-  secCmp.innerHTML = `<h3 class="dft-section-title">So với fft.js (tham khảo)</h3>`;
+  secCmp.innerHTML = `<h3 class="dft-section-title">So với FFT radix-2 (dsp)</h3>`;
   const cmpHost = document.createElement("div");
   cmpHost.id = "dft-compare";
   secCmp.appendChild(cmpHost);
@@ -441,6 +586,12 @@ function mountDftSimulator(root) {
     () => {
       fillNOptions();
       selFft.disabled = selAlgo.value !== "FFT";
+      chkStepK.disabled = selAlgo.value !== "DFT";
+      if (chkStepK.disabled) {
+        chkStepK.checked = false;
+        dftStepSession = null;
+        stepBar.hidden = true;
+      }
     },
     { signal },
   );
@@ -470,51 +621,24 @@ function mountDftSimulator(root) {
 
       if (algo === "DFT") {
         const detail = dftSteps(samples);
-        for (const block of detail) {
-          const blockEl = document.createElement("div");
-          blockEl.className = "dft-step-block";
-          const h = document.createElement("h4");
-          h.className = "dft-step-heading";
-          h.textContent = `k = ${block.k}`;
-          blockEl.appendChild(h);
-          const ol = document.createElement("ol");
-          ol.className = "dft-mini-steps";
-          for (const p of block.partials) {
-            const li = document.createElement("li");
-            li.textContent = `n = ${p.n}: đóng góp ${fmtC(p.term)} → tích lũy ${fmtC(p.acc)}`;
-            ol.appendChild(li);
-          }
-          blockEl.appendChild(ol);
-          stepsHost.appendChild(blockEl);
-        }
         finalSpectrum = dft(samples);
-        resHost.appendChild(renderSpectrumRow(finalSpectrum));
 
-        if (isPowerOfTwo(N)) {
-          refSpectrum = fft(samples);
-          const err = maxAbsDiff(finalSpectrum, refSpectrum);
-          cmpHost.appendChild(
-            document.createTextNode(
-              `Sai số cực đại so với fft(signal): ${err.toExponential(4)} (DFT vs FFT thư viện).`,
-            ),
-          );
+        if (chkStepK.checked) {
+          dftStepSession = { detail, samples, N };
+          dftStepIdx = 0;
+          stepBar.hidden = false;
+          refreshDftStepUi();
+          if (N === 1) {
+            finishDftStepSession();
+          }
         } else {
-          cmpHost.appendChild(
-            document.createTextNode(
-              "fft.js chỉ hỗ trợ N lũy thừa của 2 — không so sánh được.",
-            ),
-          );
-        }
-
-        if (isPowerOfTwo(N)) {
-          const data = generateButterflyData(N, "DIT");
-          bfHost.appendChild(
-            document.createTextNode(
-              "Gợi ý: với DFT bạn vẫn có thể xem cấu trúc bướm DIT màn hình dưới.",
-            ),
-          );
-          bfHost.appendChild(document.createElement("br"));
-          bfHost.appendChild(renderButterflySvg(data));
+          dftStepSession = null;
+          stepBar.hidden = true;
+          for (const block of detail) {
+            stepsHost.appendChild(renderOneDftBlock(block));
+          }
+          resHost.appendChild(renderSpectrumRow(finalSpectrum));
+          appendDftCompareAndButterfly(finalSpectrum, samples, N, "DFT", "DIT");
         }
       } else {
         if (!isPowerOfTwo(N)) {
@@ -535,11 +659,11 @@ function mountDftSimulator(root) {
         finalSpectrum = stages[stages.length - 1].values;
         resHost.appendChild(renderSpectrumRow(finalSpectrum));
 
-        refSpectrum = fft(samples);
+        const refSpectrum = fft(samples);
         const err = maxAbsDiff(finalSpectrum, refSpectrum);
         cmpHost.appendChild(
           document.createTextNode(
-            `Sai số cực đại so với fft(samples): ${err.toExponential(4)} (${fftKind} mô phỏng vs fft.js DIT).`,
+            `Sai số cực đại so với fft(samples) trong dsp: ${err.toExponential(4)} (${fftKind} mô phỏng vs FFT radix-2 DIT).`,
           ),
         );
 

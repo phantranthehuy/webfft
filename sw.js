@@ -1,5 +1,12 @@
 /** @type {string} */
-const CACHE_NAME = "webfft-static-v1";
+const CACHE_NAME = "webfft-static-v2";
+
+/** CDN cố định (trùng URL import trong mã) để offline/PWA vẫn tải D3 + KaTeX sau khi cài đặt cache. */
+const CDN_ASSETS = [
+  "https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm",
+  "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js",
+  "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css",
+];
 
 /** Danh sách tài nguyên tĩnh (HTML, CSS, JS, icon, manifest) — đường dẫn tương đối file sw.js. */
 const STATIC_ASSETS = [
@@ -16,6 +23,7 @@ const STATIC_ASSETS = [
   "./src/dsp/fft.js",
   "./src/dsp/stft.js",
   "./src/dsp/butterflyData.js",
+  "./src/dsp/yin.js",
   "./src/ui/uiManager.js",
   "./src/ui/dftSimulator.js",
   "./src/ui/spectrumAnalyzer.js",
@@ -28,7 +36,10 @@ const STATIC_ASSETS = [
   "./src/visualization/tunerDisplay.js",
   "./src/visualization/butterflySvg.js",
   "./src/audioWorklet/noiseReducer.js",
+  "./src/audioWorklet/pcmCapture.js",
 ];
+
+const ALL_PRECACHE = [...STATIC_ASSETS, ...CDN_ASSETS];
 
 /**
  * @param {Request} request
@@ -54,7 +65,7 @@ self.addEventListener("install", (event) => {
     (async () => {
       const cache = await caches.open(CACHE_NAME);
       await Promise.all(
-        STATIC_ASSETS.map((url) =>
+        ALL_PRECACHE.map((url) =>
           cache.add(new Request(url, { cache: "reload" })).catch(() => {}),
         ),
       );

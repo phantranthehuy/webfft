@@ -1,4 +1,8 @@
 import { initAudio, createAnalyser, resumeSharedAudioContext } from "../audioEngine.js";
+import { fft } from "../dsp/fft.js";
+import { hanning, hamming } from "../dsp/stft.js";
+import { formatHz } from "../utils/format.js";
+import { appendChildren } from "../utils/domHelpers.js";
 import {
   drawSpectrumFrame,
   resetSpectrumWaterfall,
@@ -7,6 +11,7 @@ import {
 
 /** @typedef {'linear' | 'log'} SpectrumScale */
 /** @typedef {'bar' | 'waterfall'} SpectrumMode */
+/** @typedef {'none' | 'hanning' | 'hamming'} SpectrumWindow */
 
 /** @type {AudioContext | null} */
 let ctxAudio = null;
@@ -19,11 +24,12 @@ let analyser = null;
 /** @type {number} */
 let rafId = 0;
 
-/** @type {{ fftSize: number, scale: SpectrumScale, mode: SpectrumMode }} */
+/** @type {{ fftSize: number, scale: SpectrumScale, mode: SpectrumMode, window: SpectrumWindow }} */
 let params = {
   fftSize: 2048,
   scale: "log",
   mode: "bar",
+  window: "none",
 };
 
 /** @type {HTMLCanvasElement | null} */
@@ -60,11 +66,16 @@ function loop() {
   }
 
   syncSpectrumCanvasSize(canvasEl, canvasWrap);
+  const overlayNorm =
+    params.mode === "bar"
+      ? computeDspOverlayNorm(analyser, params.fftSize, params.window)
+      : null;
   drawSpectrumFrame(canvasEl, analyser, {
     fftSize: params.fftSize,
     scale: params.scale,
     mode: params.mode,
     sampleRate: ctxAudio.sampleRate,
+    overlayNorm,
   });
 }
 
@@ -130,7 +141,8 @@ async function onStartAudio() {
     resetSpectrumWaterfall(/** @type {HTMLCanvasElement} */ (canvasEl));
 
     if (statusEl) {
-      statusEl.textContent = `Nyquist ≈ ${Math.round(context.sampleRate / 2)} Hz · fftSize ${params.fftSize}`;
+      const nyq = context.sampleRate / 2;
+      statusEl.textContent = `Nyquist ${formatHz(nyq)} · fftSize ${params.fftSize} · phổ thời gian thực = Analyser; đường cam = dsp + cửa sổ (nếu chọn).`;
     }
 
     startLoop();
@@ -142,10 +154,11 @@ async function onStartAudio() {
   }
 }
 
-function applyControlsFromUi(selFft, selScale, selMode) {
+function applyControlsFromUi(selFft, selScale, selMode, selWin) {
   params.fftSize = Number(selFft.value);
   params.scale = /** @type {SpectrumScale} */ (selScale.value);
   params.mode = /** @type {SpectrumMode} */ (selMode.value);
+  params.window = /** @type {SpectrumWindow} */ (selWin.value);
 
   if (analyser && ctxAudio && srcNode) {
     wireAnalyser(params.fftSize);
@@ -155,8 +168,54 @@ function applyControlsFromUi(selFft, selScale, selMode) {
   }
 
   if (statusEl && ctxAudio) {
-    statusEl.textContent = `Nyquist ≈ ${Math.round(ctxAudio.sampleRate / 2)} Hz · fftSize ${params.fftSize}`;
+    const nyq = ctxAudio.sampleRate / 2;
+    statusEl.textContent = `Nyquist ${formatHz(nyq)} · fftSize ${params.fftSize} · phổ thời gian thực = Analyser; đường cam = dsp + cửa sổ (nếu chọn).`;
   }
+}
+
+/**
+ * Chuẩn hoá biên độ tuyến tính theo khung (0…1) để vẽ overlay.
+ * @param {Float64Array} mags
+ * @returns {Float32Array}
+ */
+function normalizeLinearMags(mags) {
+  let mx = 1e-12;
+  for (let i = 0; i < mags.length; i++) {
+    if (mags[i] > mx) mx = mags[i];
+  }
+  const out = new Float32Array(mags.length);
+  const inv = 1 / mx;
+  for (let i = 0; i < mags.length; i++) {
+    out[i] = Math.min(1, mags[i] * inv);
+  }
+  return out;
+}
+
+/**
+ * @param {AnalyserNode} analyser
+ * @param {number} fftSize
+ * @param {SpectrumWindow} winType
+ * @returns {Float32Array | null}
+ */
+function computeDspOverlayNorm(analyser, fftSize, winType) {
+  if (winType === "none") return null;
+  const N = analyser.fftSize;
+  if (N !== fftSize) return null;
+  const td = new Float32Array(N);
+  analyser.getFloatTimeDomainData(td);
+  const win = winType === "hamming" ? hamming(N) : hanning(N);
+  const sig = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    sig[i] = td[i] * win[i];
+  }
+  const spec = fft(sig);
+  const half = N >> 1;
+  const mags = new Float64Array(half);
+  for (let k = 0; k < half; k++) {
+    const c = spec[k];
+    mags[k] = Math.hypot(c.re, c.im) / N;
+  }
+  return normalizeLinearMags(mags);
 }
 
 /**
@@ -218,10 +277,24 @@ function mountSpectrumUi(root) {
     selMode.appendChild(o);
   }
 
+  const selWin = document.createElement("select");
+  selWin.setAttribute("aria-label", "Cửa sổ minh họa dsp");
+  for (const { v, t } of [
+    { v: "none", t: "Không overlay" },
+    { v: "hanning", t: "Hann + FFT dsp" },
+    { v: "hamming", t: "Hamming + FFT dsp" },
+  ]) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = t;
+    selWin.appendChild(o);
+  }
+
   toolbar.append(
     mkField("FFT size", selFft),
     mkField("Thang", selScale),
     mkField("Hiển thị", selMode),
+    mkField("Cửa sổ (dsp)", selWin),
   );
 
   canvasWrap = document.createElement("div");
@@ -237,17 +310,18 @@ function mountSpectrumUi(root) {
   statusEl.textContent =
     "Bấm Start Audio trên header, sau đó chọn thông số để xem phổ.";
 
-  root.append(toolbar, canvasWrap, statusEl);
+  appendChildren(root, toolbar, canvasWrap, statusEl);
 
   const onParamChange = () => {
-    applyControlsFromUi(selFft, selScale, selMode);
+    applyControlsFromUi(selFft, selScale, selMode, selWin);
   };
 
   selFft.addEventListener("change", onParamChange, { signal });
   selScale.addEventListener("change", onParamChange, { signal });
   selMode.addEventListener("change", onParamChange, { signal });
+  selWin.addEventListener("change", onParamChange, { signal });
 
-  applyControlsFromUi(selFft, selScale, selMode);
+  applyControlsFromUi(selFft, selScale, selMode, selWin);
 
   const ro = new ResizeObserver(() => {
     if (canvasEl && canvasWrap) {

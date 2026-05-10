@@ -87,6 +87,21 @@ export function syncSpectrumCanvasSize(canvas, container) {
 }
 
 /**
+ * @param {Float32Array | null} overlayNorm
+ * @param {number} i0
+ * @param {number} end
+ */
+function aggregateOverlayMax(overlayNorm, i0, end) {
+  if (!overlayNorm) return 0;
+  let v = 0;
+  const hi = Math.min(end, overlayNorm.length);
+  for (let i = i0; i < hi; i++) {
+    if (overlayNorm[i] > v) v = overlayNorm[i];
+  }
+  return v;
+}
+
+/**
  * @param {HTMLCanvasElement} canvas
  * @param {AnalyserNode} analyser
  * @param {{
@@ -94,10 +109,11 @@ export function syncSpectrumCanvasSize(canvas, container) {
  *   scale: SpectrumScale,
  *   mode: SpectrumMode,
  *   sampleRate: number,
+ *   overlayNorm?: Float32Array | null,
  * }} opts
  */
 export function drawSpectrumFrame(canvas, analyser, opts) {
-  const { scale, mode, sampleRate } = opts;
+  const { scale, mode, sampleRate, overlayNorm } = opts;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
@@ -153,6 +169,29 @@ export function drawSpectrumFrame(canvas, analyser, opts) {
 
       ctx.fillStyle = intensityColor(Math.pow(mag, 0.85));
       ctx.fillRect(x, y0, barW, bh);
+    }
+
+    if (
+      overlayNorm &&
+      overlayNorm.length === binCount &&
+      overlayNorm.length > 0
+    ) {
+      ctx.strokeStyle = "rgba(255, 172, 90, 0.92)";
+      ctx.lineWidth = Math.max(1.5, 2 * sx);
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      for (let j = 0; j < cols; j++) {
+        const i0 = Math.floor((j * binCount) / cols);
+        const i1 = Math.floor(((j + 1) * binCount) / cols);
+        const end = Math.max(i0 + 1, i1);
+        const v = aggregateOverlayMax(overlayNorm, i0, end);
+        const bh = v * plotH;
+        const cx = pL + j * (barW + barGap) + barW / 2;
+        const cy = pT + plotH - bh;
+        if (j === 0) ctx.moveTo(cx, cy);
+        else ctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
     }
 
     ctx.fillStyle = "rgba(159,176,191,0.85)";

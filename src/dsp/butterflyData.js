@@ -16,7 +16,7 @@ function isPowerOfTwo(n) {
  * Dữ liệu bướm Cooley–Tukey radix-2 để vẽ luồng FFT (SVG).
  * Định nghĩa DFT: W_N^k = exp(−2πj·k/N) → twiddleReal = cos(θ), twiddleImag = sin(θ), θ = −2πk/N.
  *
- * - **DIT**: đầu vào theo thứ tự bit-reversed, đầu ra thứ tự tự nhiên (khớp `fft.js`).
+ * - **DIT**: đầu vào theo thứ tự bit-reversed, đầu ra thứ tự tự nhiên (khớp FFT radix-2 trong dsp).
  * - **DIF**: đầu vào thứ tự tự nhiên, đầu ra bit-reversed.
  *
  * @param {number} N — độ dài FFT, lũy thừa của 2

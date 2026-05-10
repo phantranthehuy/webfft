@@ -1,4 +1,7 @@
 import { initAudio, createAnalyser, resumeSharedAudioContext } from "../audioEngine.js";
+import { yinDetectPitchHz } from "../dsp/yin.js";
+import { formatHz } from "../utils/format.js";
+import { appendChildren } from "../utils/domHelpers.js";
 import { drawTunerFrame, syncTunerCanvasSize } from "../visualization/tunerDisplay.js";
 
 const FFT_SIZE = 4096;
@@ -32,6 +35,10 @@ let muteOut = null;
 let analyser = null;
 /** @type {Float32Array | null} */
 let freqBuf = null;
+/** @type {Float32Array | null} */
+let timeBuf = null;
+/** @type {'peak' | 'yin'} */
+let tunerMethod = "peak";
 /** @type {number} */
 let rafId = 0;
 
@@ -127,29 +134,55 @@ function loop() {
   }
 
   syncTunerCanvasSize(canvasEl, canvasWrap);
-  analyser.getFloatFrequencyData(freqBuf);
 
   const sr = ctxAudio.sampleRate;
   const kMin = Math.max(1, Math.ceil((F_MIN * FFT_SIZE) / sr));
-  const kMax = Math.min(freqBuf.length - 2, Math.floor((F_MAX * FFT_SIZE) / sr));
+  const kMax = Math.min(
+    (freqBuf?.length ?? 2) - 2,
+    Math.floor((F_MAX * FFT_SIZE) / sr),
+  );
 
-  if (kMax <= kMin) {
+  if (!freqBuf || !timeBuf || kMax <= kMin) {
     drawTunerFrame(canvasEl, { active: false, peakDb: -Infinity });
     return;
   }
 
-  const { k, peakDb } = findStrongestBin(freqBuf, kMin, kMax);
+  analyser.getFloatFrequencyData(freqBuf);
+  const { peakDb } = findStrongestBin(freqBuf, kMin, kMax);
 
-  if (!Number.isFinite(peakDb) || peakDb < LEVEL_FLOOR_DB) {
-    drawTunerFrame(canvasEl, { active: false, peakDb });
-    return;
+  /** @type {number | null} */
+  let hz = null;
+
+  if (tunerMethod === "yin") {
+    analyser.getFloatTimeDomainData(timeBuf);
+    hz = yinDetectPitchHz(timeBuf, sr, F_MIN, F_MAX);
+    if (hz === null) {
+      drawTunerFrame(canvasEl, {
+        active: false,
+        peakDb,
+        idleHint: "YIN: chưa ổn định — thử âm to, rõ nốt đơn.",
+        methodLabel: "YIN",
+      });
+      return;
+    }
+  } else {
+    if (!Number.isFinite(peakDb) || peakDb < LEVEL_FLOOR_DB) {
+      drawTunerFrame(canvasEl, { active: false, peakDb });
+      return;
+    }
+
+    const { k } = findStrongestBin(freqBuf, kMin, kMax);
+    const delta = parabolicBinOffset(freqBuf[k - 1], freqBuf[k], freqBuf[k + 1]);
+    const binRefined = k + Math.max(-0.75, Math.min(0.75, delta));
+    hz = (binRefined * sr) / FFT_SIZE;
+
+    if (!Number.isFinite(hz) || hz < F_MIN || hz > F_MAX) {
+      drawTunerFrame(canvasEl, { active: false, peakDb });
+      return;
+    }
   }
 
-  const delta = parabolicBinOffset(freqBuf[k - 1], freqBuf[k], freqBuf[k + 1]);
-  const binRefined = k + Math.max(-0.75, Math.min(0.75, delta));
-  const hz = (binRefined * sr) / FFT_SIZE;
-
-  if (!Number.isFinite(hz) || hz < F_MIN || hz > F_MAX) {
+  if (hz === null || !Number.isFinite(hz) || hz < F_MIN || hz > F_MAX) {
     drawTunerFrame(canvasEl, { active: false, peakDb });
     return;
   }
@@ -162,6 +195,7 @@ function loop() {
     note: label,
     cents,
     peakDb,
+    methodLabel: tunerMethod === "yin" ? "YIN" : "đỉnh phổ",
   });
 }
 
@@ -184,6 +218,7 @@ function teardownAudio() {
   muteOut = null;
   ctxAudio = null;
   freqBuf = null;
+  timeBuf = null;
 }
 
 async function onStartAudio() {
@@ -195,6 +230,7 @@ async function onStartAudio() {
   try {
     const { context, stream } = await initAudio();
     ctxAudio = context;
+    const sr = context.sampleRate;
 
     muteOut = context.createGain();
     muteOut.gain.value = 0;
@@ -209,9 +245,10 @@ async function onStartAudio() {
     analyser.connect(muteOut);
 
     freqBuf = new Float32Array(analyser.frequencyBinCount);
+    timeBuf = new Float32Array(analyser.fftSize);
 
     if (statusEl) {
-      statusEl.textContent = `Tuner · fftSize ${FFT_SIZE} · A4 = ${A4_HZ} Hz · ngưỡng ${LEVEL_FLOOR_DB} dB`;
+      statusEl.textContent = `Tuner · ${formatHz(sr, 0)} · fftSize ${FFT_SIZE} · A4 = ${formatHz(A4_HZ)} · chọn Peak hoặc YIN`;
     }
 
     startLoop();
@@ -233,6 +270,34 @@ function mountTunerUi(root) {
   const ac = new AbortController();
   const { signal } = ac;
 
+  const toolbar = document.createElement("div");
+  toolbar.className = "tuner-toolbar";
+  const lab = document.createElement("label");
+  lab.className = "tuner-field";
+  const labSpan = document.createElement("span");
+  labSpan.textContent = "Phát hiện cao độ";
+  const methodSel = document.createElement("select");
+  methodSel.setAttribute("aria-label", "Phương pháp phát hiện cao độ");
+  for (const [v, t] of [
+    ["peak", "Đỉnh phổ (FFT)"],
+    ["yin", "YIN (miền thời gian)"],
+  ]) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = t;
+    methodSel.appendChild(o);
+  }
+  methodSel.value = tunerMethod;
+  methodSel.addEventListener(
+    "change",
+    () => {
+      tunerMethod = /** @type {'peak' | 'yin'} */ (methodSel.value);
+    },
+    { signal },
+  );
+  lab.append(labSpan, methodSel);
+  toolbar.append(lab);
+
   canvasWrap = document.createElement("div");
   canvasWrap.className = "tuner-canvas-wrap";
 
@@ -246,7 +311,7 @@ function mountTunerUi(root) {
   statusEl.textContent =
     "Bấm Start Audio trên header để bật micro và hiển thị cao độ.";
 
-  root.append(canvasWrap, statusEl);
+  appendChildren(root, toolbar, canvasWrap, statusEl);
 
   const ro = new ResizeObserver(() => {
     if (canvasEl && canvasWrap) {

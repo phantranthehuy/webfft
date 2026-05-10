@@ -134,13 +134,84 @@ function averageNoiseSpectrum(mono, sampleRate) {
 }
 
 /**
- * Ghi PCM tại sampleRate của AudioContext (tránh lệch với worklet).
+ * @param {AudioContext} ctx
+ * @param {MediaStreamAudioSourceNode} micSrc
+ * @param {number} targetSamples
+ * @returns {Promise<Float32Array>}
+ */
+function captureMonoPcmWorklet(ctx, micSrc, targetSamples) {
+  const url = new URL("../audioWorklet/pcmCapture.js", import.meta.url);
+  return ctx.audioWorklet.addModule(url).then(
+    () =>
+      new Promise((resolve, reject) => {
+        /** @type {AudioWorkletNode | undefined} */
+        let node;
+        /** @type {GainNode | undefined} */
+        let mute;
+        const timeoutMs = Math.ceil((targetSamples / ctx.sampleRate) * 1000) + 4000;
+        const to = setTimeout(() => {
+          cleanup();
+          reject(new Error("Timeout khi ghi PCM (worklet)."));
+        }, timeoutMs);
+
+        function cleanup() {
+          clearTimeout(to);
+          try {
+            if (node) micSrc.disconnect(node);
+          } catch {
+            /* ignore */
+          }
+          try {
+            node?.disconnect();
+          } catch {
+            /* ignore */
+          }
+          try {
+            mute?.disconnect();
+          } catch {
+            /* ignore */
+          }
+        }
+
+        try {
+          node = new AudioWorkletNode(ctx, "pcm-capture", {
+            processorOptions: { targetSamples },
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            channelCount: 1,
+            outputChannelCount: [1],
+          });
+          mute = ctx.createGain();
+          mute.gain.value = 0;
+          node.port.onmessage = (ev) => {
+            if (
+              ev.data?.type === "captured" &&
+              ev.data.buffer instanceof Float32Array
+            ) {
+              cleanup();
+              resolve(ev.data.buffer);
+            }
+          };
+          micSrc.connect(node);
+          node.connect(mute);
+          mute.connect(ctx.destination);
+        } catch (e) {
+          clearTimeout(to);
+          cleanup();
+          reject(e instanceof Error ? e : new Error(String(e)));
+        }
+      }),
+  );
+}
+
+/**
+ * Fallback: ScriptProcessor (deprecated).
  * @param {AudioContext} ctx
  * @param {MediaStreamAudioSourceNode} micSrc
  * @param {number} durationSec
  * @returns {Promise<Float32Array>}
  */
-function captureMonoPcm(ctx, micSrc, durationSec) {
+function captureMonoPcmScript(ctx, micSrc, durationSec) {
   return new Promise((resolve, reject) => {
     const bufSize = 4096;
     if (typeof ctx.createScriptProcessor !== "function") {
@@ -191,6 +262,30 @@ function captureMonoPcm(ctx, micSrc, durationSec) {
       reject(e instanceof Error ? e : new Error(String(e)));
     }
   });
+}
+
+/**
+ * Ghi PCM tại sampleRate của AudioContext (ưu tiên AudioWorklet).
+ * @param {AudioContext} ctx
+ * @param {MediaStreamAudioSourceNode} micSrc
+ * @param {number} durationSec
+ * @returns {Promise<Float32Array>}
+ */
+async function captureMonoPcm(ctx, micSrc, durationSec) {
+  const maxSamp = Math.floor(ctx.sampleRate * durationSec);
+  if (typeof AudioWorkletNode === "function" && ctx.audioWorklet) {
+    try {
+      return await captureMonoPcmWorklet(ctx, micSrc, maxSamp);
+    } catch {
+      /* fallback */
+    }
+  }
+  if (typeof ctx.createScriptProcessor === "function") {
+    return captureMonoPcmScript(ctx, micSrc, durationSec);
+  }
+  throw new Error(
+    "Không hỗ trợ AudioWorklet hoặc ScriptProcessor để ghi PCM.",
+  );
 }
 
 /**
