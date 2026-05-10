@@ -1,6 +1,6 @@
 import { initAudio, createAnalyser, resumeSharedAudioContext } from "../audioEngine.js";
 import { fft } from "../dsp/fft.js";
-import { hanning, hamming } from "../dsp/stft.js";
+import { hanning, hamming, blackman } from "../dsp/stft.js";
 import { formatHz } from "../utils/format.js";
 import { appendChildren } from "../utils/domHelpers.js";
 import {
@@ -11,7 +11,7 @@ import {
 
 /** @typedef {'linear' | 'log'} SpectrumScale */
 /** @typedef {'bar' | 'waterfall'} SpectrumMode */
-/** @typedef {'none' | 'hanning' | 'hamming'} SpectrumWindow */
+/** @typedef {'none' | 'hanning' | 'hamming' | 'blackman'} SpectrumWindow */
 
 /** @type {AudioContext | null} */
 let ctxAudio = null;
@@ -203,7 +203,12 @@ function computeDspOverlayNorm(analyser, fftSize, winType) {
   if (N !== fftSize) return null;
   const td = new Float32Array(N);
   analyser.getFloatTimeDomainData(td);
-  const win = winType === "hamming" ? hamming(N) : hanning(N);
+  const win =
+    winType === "hamming"
+      ? hamming(N)
+      : winType === "blackman"
+        ? blackman(N)
+        : hanning(N);
   const sig = new Float64Array(N);
   for (let i = 0; i < N; i++) {
     sig[i] = td[i] * win[i];
@@ -283,6 +288,7 @@ function mountSpectrumUi(root) {
     { v: "none", t: "Không overlay" },
     { v: "hanning", t: "Hann + FFT dsp" },
     { v: "hamming", t: "Hamming + FFT dsp" },
+    { v: "blackman", t: "Blackman + FFT dsp" },
   ]) {
     const o = document.createElement("option");
     o.value = v;

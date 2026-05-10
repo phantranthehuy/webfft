@@ -56,6 +56,7 @@ function injectStyles() {
     .dtmf-key:active, .dtmf-key.is-pressed { transform: scale(0.96); box-shadow: inset 0 0 0 2px rgba(47, 210, 168, 0.35); }
     .dtmf-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .dtmf-status { font-size: 13px; color: var(--muted); margin: 0; }
+    .dtmf-help { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 0; max-width: 42rem; }
   `;
   document.head.appendChild(style);
 }
@@ -251,6 +252,11 @@ function mountDtmfDecoder(root) {
 
   toolbar.append(srcWrap, micBtn, clearBtn);
 
+  const helpEl = document.createElement("p");
+  helpEl.className = "dtmf-help";
+  helpEl.textContent =
+    "Hai chế độ «Nguồn phân tích» dùng chung một đồ thị Web Audio: Oscillator nội bộ — tín hiệu phân tích chính là tone do app phát (hai Oscillator → Gain → tap), bạn bấm phím ảo hoặc phím số trên bàn phím; Analyser lấy mẫu từ nhánh đó. Micro — đầu vào là luồng micro (MediaStreamSource → cùng tap); app không phát tone nội bộ khi đang chọn micro để tránh trộn hai nguồn. Trong cả hai trường hợp, mỗi khung hình vẽ lại: đọc miền thời gian từ Analyser, nhân cửa sổ Hann, gọi FFT trong dsp, rồi tìm cặp tần hàng/cột DTMF.";
+
   const readout = document.createElement("div");
   readout.className = "dtmf-readout";
   const currentEl = document.createElement("div");
@@ -281,7 +287,7 @@ function mountDtmfDecoder(root) {
   const statusEl = document.createElement("p");
   statusEl.className = "dtmf-status";
 
-  root.append(toolbar, readout, keypad, statusEl);
+  root.append(toolbar, helpEl, readout, keypad, statusEl);
 
   /** @type {AudioContext | null} */
   let audioCtx = null;
