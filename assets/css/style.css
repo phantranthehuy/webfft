@@ -575,7 +575,9 @@ body {
 }
 
 .spectrum-field select {
+  box-sizing: border-box;
   width: 100%;
+  min-height: 48px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--bg-alt);
