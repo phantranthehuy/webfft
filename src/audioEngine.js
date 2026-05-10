@@ -18,6 +18,9 @@ let resumeButton = null;
 /** @type {(() => void) | null} */
 let resumeStateListener = null;
 
+/** Ẩn nút Resume khi đang ở tab không dùng audio (vd Simulator). */
+let resumeUiSuppressed = false;
+
 /**
  * @param {number} n
  * @returns {boolean}
@@ -28,9 +31,29 @@ function isPowerOfTwoInRange(n) {
 
 function syncResumeButtonVisibility(context) {
   if (!resumeButton) return;
+  if (resumeUiSuppressed) {
+    resumeButton.hidden = true;
+    resumeButton.setAttribute('aria-hidden', 'true');
+    return;
+  }
   const suspended = context.state === 'suspended';
   resumeButton.hidden = !suspended;
   resumeButton.setAttribute('aria-hidden', suspended ? 'false' : 'true');
+}
+
+/**
+ * Tab không dùng real-time audio: luôn ẩn nút Resume để tránh chồng UI.
+ * @param {boolean} suppress
+ */
+export function setResumeUiSuppressed(suppress) {
+  resumeUiSuppressed = suppress;
+  if (!resumeButton) return;
+  if (suppress) {
+    resumeButton.hidden = true;
+    resumeButton.setAttribute('aria-hidden', 'true');
+  } else if (sharedContext) {
+    syncResumeButtonVisibility(sharedContext);
+  }
 }
 
 /**

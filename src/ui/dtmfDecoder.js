@@ -20,6 +20,21 @@ const KEY_MATRIX = Object.freeze([
   ["*", "0", "#", "D"],
 ]);
 
+/**
+ * @param {string} key — một ký tự (`ev.key` hoặc ký tự trong lịch sử)
+ * @returns {[number, number] | null}
+ */
+function lookupDigitRcFromKey(key) {
+  if (key.length !== 1) return null;
+  const ch = /[a-d]/i.test(key) ? key.toUpperCase() : key;
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      if (KEY_MATRIX[r][c] === ch) return [r, c];
+    }
+  }
+  return null;
+}
+
 const FREQ_TOL = 0.015;
 const AMP_DIFF_DB_MAX = 10;
 const MIN_DETECT_GAP_MS = 80;
@@ -45,8 +60,17 @@ function injectStyles() {
     .dtmf-current { font-family: "Space Grotesk", sans-serif; font-size: 42px; font-weight: 600; letter-spacing: 0.06em;
       color: var(--accent); min-height: 1.2em; }
     .dtmf-meta { font-size: 13px; color: var(--muted); }
-    .dtmf-history-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-    .dtmf-history { font-family: ui-monospace, monospace; font-size: 15px; word-break: break-all; color: var(--text); flex: 1; min-height: 1.4em; }
+    .dtmf-history-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; justify-content: space-between; }
+    .dtmf-history { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; min-height: 1.4em; min-width: 0; }
+    .dtmf-history-empty { font-family: ui-monospace, monospace; font-size: 15px; color: var(--muted); }
+    .dtmf-hist-char {
+      font-family: ui-monospace, monospace; font-size: 15px; font-weight: 600;
+      min-width: 2em; height: 2em; padding: 0 8px; border-radius: 10px;
+      border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text);
+      cursor: pointer; transition: border-color 0.15s ease, transform 0.12s ease;
+    }
+    .dtmf-hist-char:hover { border-color: rgba(47, 210, 168, 0.45); }
+    .dtmf-hist-char:active { transform: scale(0.96); }
     .dtmf-keypad { display: grid; grid-template-columns: repeat(4, minmax(56px, 1fr)); gap: 10px; max-width: 320px; }
     .dtmf-key {
       aspect-ratio: 1; border-radius: 14px; border: 1px solid var(--border);
@@ -242,7 +266,7 @@ function mountDtmfDecoder(root) {
   optInt.textContent = "Oscillator nội bộ (Phát tone để nghe)";
   const optMic = document.createElement("option");
   optMic.value = "mic";
-  optMic.textContent = "Micro (dùng Start Audio trên header)";
+  optMic.textContent = "Micro (nút micro góc trái dưới)";
   srcSel.append(optInt, optMic);
 
   const clearBtn = document.createElement("button");
@@ -256,7 +280,7 @@ function mountDtmfDecoder(root) {
   const helpEl = document.createElement("p");
   helpEl.className = "dtmf-help";
   helpEl.textContent =
-    "Oscillator nội bộ: chọn phím trên bàn phím ảo (hoặc phím số), rồi bấm «Phát tone» hoặc Enter — tone mới phát ra; Analyser đọc nhánh synthesizer. Micro: bấm Start Audio trên header rồi chọn nguồn Micro; không phát tone nội bộ để tránh trộn nguồn. Mỗi khung: FFT dsp + Hann trên Analyser, tìm cặp tần DTMF.";
+    "Oscillator nội bộ: chọn phím trên bàn phím ảo (hoặc phím số, gồm * và #), rồi bấm «Phát tone» hoặc Enter — tone mới phát ra; Analyser đọc nhánh synthesizer. Micro: bật icon micro góc trái dưới rồi chọn nguồn Micro; không phát tone nội bộ để tránh trộn nguồn. Bấm từng ký tự trong lịch sử để phát lại nhanh (nội bộ). Mỗi khung: FFT dsp + Hann trên Analyser, tìm cặp tần DTMF.";
 
   const readout = document.createElement("div");
   readout.className = "dtmf-readout";
@@ -365,6 +389,40 @@ function mountDtmfDecoder(root) {
     pendingRc = null;
     pendingEl.textContent = "—";
     refreshPendingKeyHighlight();
+  }
+
+  function refreshHistoryUi() {
+    histEl.replaceChildren();
+    if (!history) {
+      const span = document.createElement("span");
+      span.className = "dtmf-history-empty";
+      span.textContent = "(trống)";
+      histEl.append(span);
+      return;
+    }
+    for (const ch of history) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dtmf-hist-char";
+      btn.textContent = ch;
+      btn.setAttribute("aria-label", `Phát lại phím ${ch}`);
+      btn.addEventListener(
+        "click",
+        () => {
+          const rc = lookupDigitRcFromKey(ch);
+          if (!rc) return;
+          const [rk, ck] = rc;
+          setPendingDigit(rk, ck);
+          if (!isMicSource()) {
+            commitPlayPending();
+          } else {
+            statusEl.textContent = `Đã chọn «${ch}» trong Chờ phát (micro — không phát tone nội bộ).`;
+          }
+        },
+        { signal },
+      );
+      histEl.append(btn);
+    }
   }
 
   /**
@@ -511,12 +569,12 @@ function mountDtmfDecoder(root) {
 
     const now = performance.now();
     if (
-      stableCount >= STABLE_FRAMES &&
+      stableCount === STABLE_FRAMES &&
       now - lastEmitAt >= MIN_DETECT_GAP_MS
     ) {
       lastEmitAt = now;
       history += digit;
-      histEl.textContent = history || "(trống)";
+      refreshHistoryUi();
     }
   }
 
@@ -609,7 +667,28 @@ function mountDtmfDecoder(root) {
         return;
       }
 
-      const idx = map[/** @type {keyof typeof map} */ (ev.code)];
+      const numpadMap = /** @type {const} */ ({
+        Numpad1: [0, 0],
+        Numpad2: [0, 1],
+        Numpad3: [0, 2],
+        Numpad4: [1, 0],
+        Numpad5: [1, 1],
+        Numpad6: [1, 2],
+        Numpad7: [2, 0],
+        Numpad8: [2, 1],
+        Numpad9: [2, 2],
+        Numpad0: [3, 1],
+      });
+
+      let idx =
+        map[/** @type {keyof typeof map} */ (ev.code)] ??
+        numpadMap[/** @type {keyof typeof numpadMap} */ (ev.code)];
+      if (!idx && ev.code === "NumpadMultiply") {
+        idx = [3, 0];
+      }
+      if (!idx && ev.key && ev.key.length === 1) {
+        idx = lookupDigitRcFromKey(ev.key);
+      }
       if (!idx || isMicSource()) return;
       ev.preventDefault();
       const [rk, ck] = idx;
@@ -635,7 +714,7 @@ function mountDtmfDecoder(root) {
       const ctx = getSharedAudioContext();
       if (!stream || !ctx) {
         statusEl.textContent =
-          "Chưa có luồng micro — bấm Start Audio trên header.";
+          "Chưa có luồng micro — bật icon micro góc trái dưới.";
         return;
       }
       audioCtx = ctx;
@@ -679,7 +758,7 @@ function mountDtmfDecoder(root) {
         } else {
           disconnectMic();
           statusEl.textContent =
-            "Chọn Start Audio trên header để bật micro (giữ «Micro» làm nguồn phân tích).";
+            "Bật icon micro góc trái dưới để mở micro (giữ «Micro» làm nguồn phân tích).";
         }
       }
     },
@@ -690,7 +769,7 @@ function mountDtmfDecoder(root) {
     "click",
     () => {
       history = "";
-      histEl.textContent = "(trống)";
+      refreshHistoryUi();
       lastEmitAt = 0;
       stableDigit = null;
       stableCount = 0;
@@ -699,8 +778,9 @@ function mountDtmfDecoder(root) {
   );
 
   wireInternalTapOnly();
+  refreshHistoryUi();
   statusEl.textContent =
-    "Nội bộ: chọn phím rồi «Phát tone» hoặc Enter. Micro: Start Audio trên header.";
+    "Nội bộ: chọn phím rồi «Phát tone» hoặc Enter. Micro: icon micro góc trái dưới.";
   startLoop();
 
   document.addEventListener(
@@ -718,7 +798,7 @@ function mountDtmfDecoder(root) {
       disconnectMic();
       if (srcSel.value === "mic") {
         statusEl.textContent =
-          "Micro đã dừng. Bấm Start Audio trên header (giữ nguồn Micro), sau đó vào lại tab nếu cần đồng bộ.";
+          "Micro đã dừng. Bật lại icon micro góc trái dưới (giữ nguồn Micro), sau đó vào lại tab nếu cần đồng bộ.";
       }
     },
     { signal },

@@ -335,7 +335,7 @@ function mountTunerUi(root) {
   statusEl = document.createElement("p");
   statusEl.className = "tuner-status";
   statusEl.textContent =
-    "Bấm Start Audio trên header để bật micro và hiển thị cao độ.";
+    "Bật icon micro góc trái dưới để mở micro và hiển thị cao độ.";
 
   appendChildren(root, toolbar, canvasWrap, statusEl);
 
@@ -355,7 +355,7 @@ function mountTunerUi(root) {
     teardownAudio();
     if (statusEl) {
       statusEl.textContent =
-        "Micro đã dừng. Bấm Start Audio trên header để bật lại và hiển thị cao độ.";
+        "Micro đã dừng. Bật lại icon micro góc trái dưới để hiển thị cao độ.";
     }
   };
   document.addEventListener("webfft:stop-audio", onStopAudioEv, { signal });

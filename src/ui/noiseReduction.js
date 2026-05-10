@@ -375,7 +375,7 @@ function mountNoiseReduction(root) {
   const statusEl = document.createElement("p");
   statusEl.className = "nr-readout";
   statusEl.textContent =
-    "Cần Start Audio (header) hoặc «Ghi mẫu nhiễu» để có micro. Phổ nhiễu: dsp.fft + Hann; xử lý 1024 mẫu/khung trong worklet.";
+    "Cần icon micro góc trái dưới hoặc «Ghi mẫu nhiễu» để có micro. Phổ nhiễu: dsp.fft + Hann; xử lý 1024 mẫu/khung trong worklet.";
 
   root.append(secNoise, secNr, secOut, statusEl);
 
@@ -600,7 +600,8 @@ function mountNoiseReduction(root) {
     "click",
     async () => {
     if (!ctx || !micSrc || !monitorGain) {
-      statusEl.textContent = "Chưa có audio: bấm Sample Noise hoặc Start Audio.";
+      statusEl.textContent =
+        "Chưa có audio: bấm Sample Noise hoặc icon micro góc trái dưới.";
       return;
     }
     if (!noiseProfile) {
@@ -777,7 +778,7 @@ function mountNoiseReduction(root) {
       if (!isNoisePanelVisible()) return;
       teardownAll();
       statusEl.textContent =
-        "Micro đã dừng. Bấm Start Audio hoặc «Ghi mẫu nhiễu» để có luồng micro lại.";
+        "Micro đã dừng. Bật icon micro hoặc «Ghi mẫu nhiễu» để có luồng micro lại.";
     },
     { signal },
   );
