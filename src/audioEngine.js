@@ -113,13 +113,18 @@ export async function initAudio() {
 
   stopSharedStream();
 
-  sharedStream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-  });
+  try {
+    sharedStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+  } catch {
+    /* Một số thiết bị/Android từ chối ràng buộc chi tiết — thử profile đơn giản. */
+    sharedStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  }
 
   await sharedContext.resume();
   syncResumeButtonVisibility(sharedContext);
@@ -168,6 +173,48 @@ export function createAnalyser(fftSize = 2048) {
  */
 export function getSharedAudioContext() {
   return sharedContext;
+}
+
+/**
+ * Luồng micro hiện giữ sau `initAudio()` / `ensureMicStream()` (hoặc null).
+ * @returns {MediaStream | null}
+ */
+export function getSharedMediaStream() {
+  return sharedStream;
+}
+
+/**
+ * Còn track âm thanh đang live (đã Start Audio thành công).
+ * @returns {boolean}
+ */
+export function hasLiveMicStream() {
+  if (!sharedStream) return false;
+  return sharedStream.getTracks().some(
+    (t) => t.kind === "audio" && t.readyState === "live",
+  );
+}
+
+/**
+ * Đảm bảo có micro: tái dùng luồng đã mở nếu còn live (không gọi getUserMedia lại).
+ * Dùng sau khi người dùng đã bấm Start Audio rồi chuyển tab — các panel có thể nối muộn.
+ *
+ * @returns {Promise<{ context: AudioContext, stream: MediaStream }>}
+ */
+export async function ensureMicStream() {
+  ensureAudioContext();
+  if (!sharedContext) {
+    throw new Error("ensureMicStream: không có AudioContext");
+  }
+
+  void sharedContext.resume();
+
+  if (hasLiveMicStream()) {
+    await sharedContext.resume();
+    syncResumeButtonVisibility(sharedContext);
+    return { context: sharedContext, stream: sharedStream };
+  }
+
+  return initAudio();
 }
 
 /**

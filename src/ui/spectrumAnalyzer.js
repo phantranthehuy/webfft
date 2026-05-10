@@ -1,6 +1,12 @@
-import { initAudio, createAnalyser, resumeSharedAudioContext } from "../audioEngine.js";
+import {
+  createAnalyser,
+  ensureMicStream,
+  hasLiveMicStream,
+  getSharedAudioContext,
+  resumeSharedAudioContext,
+} from "../audioEngine.js";
 import { fft } from "../dsp/fft.js";
-import { hanning, hamming } from "../dsp/stft.js";
+import { hanning, hamming, blackman } from "../dsp/stft.js";
 import { formatHz } from "../utils/format.js";
 import { appendChildren } from "../utils/domHelpers.js";
 import {
@@ -11,7 +17,7 @@ import {
 
 /** @typedef {'linear' | 'log'} SpectrumScale */
 /** @typedef {'bar' | 'waterfall'} SpectrumMode */
-/** @typedef {'none' | 'hanning' | 'hamming'} SpectrumWindow */
+/** @typedef {'none' | 'hanning' | 'hamming' | 'blackman'} SpectrumWindow */
 
 /** @type {AudioContext | null} */
 let ctxAudio = null;
@@ -123,12 +129,15 @@ function wireAnalyser(fftSize) {
   analyser.connect(muteOut);
 }
 
-async function onStartAudio() {
+/**
+ * Nối Analyser với micro (tái dùng sau Start Audio nếu đã có luồng).
+ */
+async function connectAnalyzerMic() {
   teardownAudio();
   statusEl && (statusEl.textContent = "Đang mở micro…");
 
   try {
-    const { context, stream } = await initAudio();
+    const { context, stream } = await ensureMicStream();
     ctxAudio = context;
 
     muteOut = context.createGain();
@@ -152,6 +161,13 @@ async function onStartAudio() {
       statusEl.textContent = `Lỗi: ${msg}`;
     }
   }
+}
+
+/** Khi đã Start Audio trước rồi mới vào tab — sự kiện có thể đã phát trước khi mount. */
+async function connectAnalyzerMicIfPrimed() {
+  if (!hasLiveMicStream() || !getSharedAudioContext()) return;
+  if (ctxAudio && analyser && srcNode) return;
+  await connectAnalyzerMic();
 }
 
 function applyControlsFromUi(selFft, selScale, selMode, selWin) {
@@ -203,7 +219,12 @@ function computeDspOverlayNorm(analyser, fftSize, winType) {
   if (N !== fftSize) return null;
   const td = new Float32Array(N);
   analyser.getFloatTimeDomainData(td);
-  const win = winType === "hamming" ? hamming(N) : hanning(N);
+  const win =
+    winType === "hamming"
+      ? hamming(N)
+      : winType === "blackman"
+        ? blackman(N)
+        : hanning(N);
   const sig = new Float64Array(N);
   for (let i = 0; i < N; i++) {
     sig[i] = td[i] * win[i];
@@ -283,6 +304,7 @@ function mountSpectrumUi(root) {
     { v: "none", t: "Không overlay" },
     { v: "hanning", t: "Hann + FFT dsp" },
     { v: "hamming", t: "Hamming + FFT dsp" },
+    { v: "blackman", t: "Blackman + FFT dsp" },
   ]) {
     const o = document.createElement("option");
     o.value = v;
@@ -331,7 +353,7 @@ function mountSpectrumUi(root) {
   ro.observe(canvasWrap);
 
   const onStartAudioEv = () => {
-    void onStartAudio();
+    void connectAnalyzerMic();
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
 
@@ -363,6 +385,7 @@ export function createSpectrumAnalyzerMode(root) {
       if (!teardown) {
         teardown = mountSpectrumUi(root);
       }
+      void connectAnalyzerMicIfPrimed();
       if (isAnalyzerPanelVisible() && analyser && canvasEl) {
         startLoop();
       }

@@ -1,6 +1,9 @@
 import {
   ensureAudioContext,
-  initAudio,
+  ensureMicStream,
+  getSharedAudioContext,
+  getSharedMediaStream,
+  hasLiveMicStream,
   resumeSharedAudioContext,
 } from "../audioEngine.js";
 import { fft } from "../dsp/fft.js";
@@ -56,6 +59,7 @@ function injectStyles() {
     .dtmf-key:active, .dtmf-key.is-pressed { transform: scale(0.96); box-shadow: inset 0 0 0 2px rgba(47, 210, 168, 0.35); }
     .dtmf-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .dtmf-status { font-size: 13px; color: var(--muted); margin: 0; }
+    .dtmf-help { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 0; max-width: 42rem; }
   `;
   document.head.appendChild(style);
 }
@@ -251,6 +255,11 @@ function mountDtmfDecoder(root) {
 
   toolbar.append(srcWrap, micBtn, clearBtn);
 
+  const helpEl = document.createElement("p");
+  helpEl.className = "dtmf-help";
+  helpEl.textContent =
+    "Hai chế độ «Nguồn phân tích» dùng chung một đồ thị Web Audio: Oscillator nội bộ — tín hiệu phân tích chính là tone do app phát (hai Oscillator → Gain → tap), bạn bấm phím ảo hoặc phím số trên bàn phím; Analyser lấy mẫu từ nhánh đó. Micro — đầu vào là luồng micro (MediaStreamSource → cùng tap); app không phát tone nội bộ khi đang chọn micro để tránh trộn hai nguồn. Trong cả hai trường hợp, mỗi khung hình vẽ lại: đọc miền thời gian từ Analyser, nhân cửa sổ Hann, gọi FFT trong dsp, rồi tìm cặp tần hàng/cột DTMF.";
+
   const readout = document.createElement("div");
   readout.className = "dtmf-readout";
   const currentEl = document.createElement("div");
@@ -281,7 +290,7 @@ function mountDtmfDecoder(root) {
   const statusEl = document.createElement("p");
   statusEl.className = "dtmf-status";
 
-  root.append(toolbar, readout, keypad, statusEl);
+  root.append(toolbar, helpEl, readout, keypad, statusEl);
 
   /** @type {AudioContext | null} */
   let audioCtx = null;
@@ -555,7 +564,7 @@ function mountDtmfDecoder(root) {
     micBtn.disabled = true;
     statusEl.textContent = "Đang mở micro…";
     try {
-      const { context, stream } = await initAudio();
+      const { context, stream } = await ensureMicStream();
       audioCtx = context;
       ensureGraph({ monitorSpeakers: false });
       wireMicFromSharedStream(stream);
@@ -566,6 +575,23 @@ function mountDtmfDecoder(root) {
       statusEl.textContent = `Micro lỗi: ${msg}`;
     } finally {
       micBtn.disabled = false;
+    }
+  }
+
+  async function syncMicFromPrimedStartAudio() {
+    if (srcSel.value !== "mic") return;
+    if (!hasLiveMicStream() || !getSharedAudioContext()) return;
+    try {
+      const stream = getSharedMediaStream();
+      const ctx = getSharedAudioContext();
+      if (!stream || !ctx) return;
+      audioCtx = ctx;
+      ensureGraph({ monitorSpeakers: false });
+      wireMicFromSharedStream(stream);
+      statusEl.textContent = `Micro · ${Math.round(ctx.sampleRate)} Hz`;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      statusEl.textContent = `Micro (đồng bộ): ${msg}`;
     }
   }
 
@@ -622,21 +648,24 @@ function mountDtmfDecoder(root) {
     { signal },
   );
 
-  return () => {
-    stopLoop();
-    disconnectMic();
-    for (const n of [analyser, tapGain, outGain]) {
-      try {
-        n?.disconnect();
-      } catch {
-        /* ignore */
+  return {
+    dispose() {
+      stopLoop();
+      disconnectMic();
+      for (const n of [analyser, tapGain, outGain]) {
+        try {
+          n?.disconnect();
+        } catch {
+          /* ignore */
+        }
       }
-    }
-    analyser = null;
-    tapGain = null;
-    outGain = null;
-    ac.abort();
-    root.innerHTML = "";
+      analyser = null;
+      tapGain = null;
+      outGain = null;
+      ac.abort();
+      root.innerHTML = "";
+    },
+    syncMicFromPrimedStartAudio,
   };
 }
 
@@ -645,8 +674,8 @@ function mountDtmfDecoder(root) {
  * @returns {{ id: string, isRealtimeAudio: boolean, enter: () => void, exit: () => void }}
  */
 export function createDtmfDecoderMode(root) {
-  /** @type {(() => void) | null} */
-  let teardown = null;
+  /** @type {{ dispose: () => void; syncMicFromPrimedStartAudio: () => Promise<void> } | null} */
+  let dtmfApi = null;
 
   return {
     id: "dtmf",
@@ -654,13 +683,14 @@ export function createDtmfDecoderMode(root) {
     enter() {
       if (!root) return;
       void resumeSharedAudioContext();
-      if (!teardown) {
-        teardown = mountDtmfDecoder(root);
+      if (!dtmfApi) {
+        dtmfApi = mountDtmfDecoder(root);
       }
+      void dtmfApi.syncMicFromPrimedStartAudio();
     },
     exit() {
-      teardown?.();
-      teardown = null;
+      dtmfApi?.dispose();
+      dtmfApi = null;
     },
   };
 }

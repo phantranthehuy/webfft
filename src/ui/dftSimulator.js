@@ -67,6 +67,86 @@ function parseSignal(text, N) {
 }
 
 /**
+ * Phức: N cặp `re,im` tách nhau bằng `;` hoặc xuống dòng (phần thập phân dùng dấu chấm).
+ * @param {string} text
+ * @param {number} N
+ * @returns {Complex[]}
+ */
+function parseComplexDelimited(text, N) {
+  const chunks = text
+    .split(/[;\n]+/u)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (chunks.length !== N) {
+    throw new Error(
+      `Chế độ phức: cần đúng ${N} cặp re,im (tách bằng «;» hoặc xuống dòng), hiện có ${chunks.length}.`,
+    );
+  }
+  /** @type {Complex[]} */
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const parts = chunks[i].split(/[, ]+/u).filter(Boolean);
+    if (parts.length !== 2) {
+      throw new Error(
+        `Cặp ${i + 1}: cần đúng hai số re,im (ví dụ «1, 0» hoặc «0.5 -0.25»).`,
+      );
+    }
+    const re = Number(parts[0]);
+    const im = Number(parts[1]);
+    if (!Number.isFinite(re) || !Number.isFinite(im)) {
+      throw new Error(`Cặp ${i + 1}: re hoặc im không hợp lệ.`);
+    }
+    out.push(new Complex(re, im));
+  }
+  return out;
+}
+
+/**
+ * @param {Float64Array} signal
+ * @returns {Complex[]}
+ */
+function toComplexFromReal(signal) {
+  return Array.from(signal, (v) => new Complex(v, 0));
+}
+
+/**
+ * @param {Complex[]} x
+ * @returns {boolean}
+ */
+function isEffectivelyReal(x) {
+  return x.every((c) => Math.abs(c.im) < 1e-12);
+}
+
+/**
+ * DFT O(N²) cho tín hiệu phức (cùng định nghĩa với `dsp/dft.js` nhưng x[n] phức).
+ * @param {Complex[]} x
+ * @returns {Complex[]}
+ */
+function dftFromComplex(x) {
+  const N = x.length;
+  if (N === 0) return [];
+
+  /** @type {Complex[]} */
+  const W = new Array(N);
+  const twoPiOverN = TWO_PI / N;
+  for (let m = 0; m < N; m++) {
+    W[m] = Complex.fromPolar(1, -twoPiOverN * m);
+  }
+
+  /** @type {Complex[]} */
+  const spectrum = new Array(N);
+  for (let k = 0; k < N; k++) {
+    let acc = new Complex(0, 0);
+    for (let n = 0; n < N; n++) {
+      const idx = (k * n) % N;
+      acc = acc.add(W[idx].mul(x[n]));
+    }
+    spectrum[k] = acc;
+  }
+  return spectrum;
+}
+
+/**
  * @param {Complex} c
  * @param {number} d
  */
@@ -116,15 +196,15 @@ function cloneSpectrum(xs) {
 }
 
 /**
- * @param {Float64Array} signal
+ * @param {Complex[]} seqIn — x[0]…x[N−1] miền thời gian
  * @param {number} N
  */
-function simulateDit(signal, N) {
+function simulateDit(seqIn, N) {
   const bits = Math.trunc(Math.log2(N));
   const tw = precomputeDitTwiddles(N);
   /** @type {Complex[]} */
   const seq = [];
-  for (let i = 0; i < N; i++) seq.push(new Complex(signal[i], 0));
+  for (let i = 0; i < N; i++) seq.push(new Complex(seqIn[i].re, seqIn[i].im));
 
   /** @type {Complex[]} */
   const A = new Array(N);
@@ -165,14 +245,14 @@ function simulateDit(signal, N) {
 }
 
 /**
- * @param {Float64Array} signal
+ * @param {Complex[]} seqIn — x[0]…x[N−1] miền thời gian
  * @param {number} N
  */
-function simulateDif(signal, N) {
+function simulateDif(seqIn, N) {
   const bits = Math.trunc(Math.log2(N));
   /** @type {Complex[]} */
   const A = [];
-  for (let i = 0; i < N; i++) A.push(new Complex(signal[i], 0));
+  for (let i = 0; i < N; i++) A.push(new Complex(seqIn[i].re, seqIn[i].im));
 
   /** @type {{ title: string, values: Complex[] }[]} */
   const stages = [
@@ -216,10 +296,10 @@ function simulateDif(signal, N) {
 }
 
 /**
- * @param {Float64Array} signal
+ * @param {Complex[]} x — mẫu miền thời gian (thực hoặc phức)
  */
-function dftSteps(signal) {
-  const N = signal.length;
+function dftStepsFromSequence(x) {
+  const N = x.length;
   const W = new Array(N);
   const inv = TWO_PI / N;
   for (let m = 0; m < N; m++) {
@@ -233,7 +313,7 @@ function dftSteps(signal) {
     const partials = [];
     for (let n = 0; n < N; n++) {
       const idx = (k * n) % N;
-      const term = W[idx].mul(new Complex(signal[n], 0));
+      const term = W[idx].mul(x[n]);
       acc = acc.add(term);
       partials.push({ n, term, acc: new Complex(acc.re, acc.im) });
     }
@@ -316,15 +396,45 @@ function mountDftSimulator(root) {
   const controls = document.createElement("div");
   controls.className = "dft-controls";
 
+  const labMode = document.createElement("label");
+  labMode.className = "dft-field";
+  labMode.innerHTML = `<span>Kiểu nhập tín hiệu</span>`;
+  const selInputMode = document.createElement("select");
+  selInputMode.id = "dft-input-mode";
+  selInputMode.setAttribute("aria-label", "Kiểu nhập tín hiệu DFT");
+  const optReal = document.createElement("option");
+  optReal.value = "real";
+  optReal.textContent = "Thực: N giá trị (phẩy / khoảng trắng)";
+  const optComplex = document.createElement("option");
+  optComplex.value = "complex";
+  optComplex.textContent = "Phức: N cặp re,im (tách cặp bằng «;» hoặc xuống dòng)";
+  selInputMode.append(optReal, optComplex);
+  labMode.appendChild(selInputMode);
+
   const labIn = document.createElement("label");
   labIn.className = "dft-field";
-  labIn.innerHTML = `<span>Dãy mẫu (phân tách bằng dấu phẩy hoặc khoảng trắng)</span>`;
+  const spanIn = document.createElement("span");
+  spanIn.id = "dft-input-hint";
+  spanIn.textContent =
+    "Dãy mẫu thực (phân tách bằng dấu phẩy hoặc khoảng trắng)";
+  labIn.appendChild(spanIn);
   const ta = document.createElement("textarea");
   ta.id = "dft-input";
   ta.rows = 4;
   ta.placeholder = "Ví dụ: 1, 0, -1, 0";
   ta.value = "1, 0, 0, 0";
   labIn.appendChild(ta);
+
+  function syncInputHint() {
+    const complex = selInputMode.value === "complex";
+    spanIn.textContent = complex
+      ? "N cặp re,im — mỗi cặp một dòng hoặc cách nhau bằng «;» (phần thập phân dùng dấu chấm)"
+      : "Dãy mẫu thực (phân tách bằng dấu phẩy hoặc khoảng trắng)";
+    ta.placeholder = complex
+      ? "Ví dụ N=4: 1,0; 0,1; -1,0; 0,-1"
+      : "Ví dụ: 1, 0, -1, 0";
+  }
+  syncInputHint();
 
   const labN = document.createElement("label");
   labN.className = "dft-field";
@@ -384,7 +494,7 @@ function mountDftSimulator(root) {
   btnStepNext.textContent = "k sau →";
   stepBar.append(btnStepPrev, stepReadout, btnStepNext);
 
-  /** @type {{ detail: ReturnType<typeof dftSteps>, samples: Float64Array, N: number } | null} */
+  /** @type {{ detail: ReturnType<typeof dftStepsFromSequence>, seq0: Complex[], N: number } | null} */
   let dftStepSession = null;
   /** @type {number} */
   let dftStepIdx = 0;
@@ -417,21 +527,32 @@ function mountDftSimulator(root) {
     btnStepNext.disabled = dftStepIdx >= N - 1;
   }
 
+  /**
+   * @param {Complex[]} finalSpectrum
+   * @param {Complex[]} seq0
+   * @param {Float64Array} reals — phần thực của seq0 (dùng cho fft() khi tín hiệu thuần thực)
+   * @param {boolean} allReal
+   */
   function appendDftCompareAndButterfly(
     finalSpectrum,
-    samples,
+    seq0,
+    reals,
+    allReal,
     N,
     algo,
     fftKind,
   ) {
     if (isPowerOfTwo(N)) {
-      const refSpectrum = fft(samples);
+      const refSpectrum = allReal ? fft(reals) : dftFromComplex(seq0);
       const err = maxAbsDiff(finalSpectrum, refSpectrum);
+      const refLabel = allReal
+        ? "fft(samples) trong dsp (N thực)"
+        : "DFT O(N²) tín hiệu phức (tham chiếu)";
       cmpHost.appendChild(
         document.createTextNode(
           algo === "DFT"
-            ? `Sai số cực đại so với fft(samples) trong dsp: ${err.toExponential(4)} (DFT vs FFT radix-2).`
-            : `Sai số cực đại so với fft(samples) trong dsp: ${err.toExponential(4)} (${fftKind} mô phỏng vs FFT radix-2 DIT).`,
+            ? `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (DFT vs tham chiếu).`
+            : `Sai số cực đại so với ${refLabel}: ${err.toExponential(4)} (${fftKind} mô phỏng vs tham chiếu).`,
         ),
       );
     } else {
@@ -461,10 +582,20 @@ function mountDftSimulator(root) {
 
   function finishDftStepSession() {
     if (!dftStepSession) return;
-    const { detail, samples, N } = dftStepSession;
+    const { detail, seq0, N } = dftStepSession;
     const specFromBlocks = detail.map((b) => b.Xk);
+    const reals = Float64Array.from(seq0.map((c) => c.re));
+    const allReal = isEffectivelyReal(seq0);
     resHost.appendChild(renderSpectrumRow(specFromBlocks));
-    appendDftCompareAndButterfly(specFromBlocks, samples, N, "DFT", "DIT");
+    appendDftCompareAndButterfly(
+      specFromBlocks,
+      seq0,
+      reals,
+      allReal,
+      N,
+      "DFT",
+      "DIT",
+    );
     dftStepSession = null;
     stepBar.hidden = true;
   }
@@ -511,7 +642,15 @@ function mountDftSimulator(root) {
   btn.id = "dft-compute";
   btn.textContent = "Compute";
 
-  controls.append(labIn, labN, labAlgo, labFft, labStep, stepBar, btn);
+  controls.append(labMode, labIn, labN, labAlgo, labFft, labStep, stepBar, btn);
+
+  selInputMode.addEventListener(
+    "change",
+    () => {
+      syncInputHint();
+    },
+    { signal },
+  );
 
   const errBox = document.createElement("div");
   errBox.className = "dft-error";
@@ -611,7 +750,13 @@ function mountDftSimulator(root) {
       const N = Number(selN.value);
       const algo = selAlgo.value;
       const fftKind = selFft.value;
-      const samples = parseSignal(ta.value, N);
+      const useComplex = selInputMode.value === "complex";
+      /** @type {Complex[]} */
+      const seq0 = useComplex
+        ? parseComplexDelimited(ta.value, N)
+        : toComplexFromReal(parseSignal(ta.value, N));
+      const reals = Float64Array.from(seq0.map((c) => c.re));
+      const allReal = isEffectivelyReal(seq0);
 
       const matrix = buildTwiddleMatrix(N);
       twHost.appendChild(renderTwiddleTable(matrix));
@@ -620,11 +765,11 @@ function mountDftSimulator(root) {
       let finalSpectrum;
 
       if (algo === "DFT") {
-        const detail = dftSteps(samples);
-        finalSpectrum = dft(samples);
+        const detail = dftStepsFromSequence(seq0);
+        finalSpectrum = allReal ? dft(reals) : dftFromComplex(seq0);
 
         if (chkStepK.checked) {
-          dftStepSession = { detail, samples, N };
+          dftStepSession = { detail, seq0, N };
           dftStepIdx = 0;
           stepBar.hidden = false;
           refreshDftStepUi();
@@ -638,14 +783,22 @@ function mountDftSimulator(root) {
             stepsHost.appendChild(renderOneDftBlock(block));
           }
           resHost.appendChild(renderSpectrumRow(finalSpectrum));
-          appendDftCompareAndButterfly(finalSpectrum, samples, N, "DFT", "DIT");
+          appendDftCompareAndButterfly(
+            finalSpectrum,
+            seq0,
+            reals,
+            allReal,
+            N,
+            "DFT",
+            "DIT",
+          );
         }
       } else {
         if (!isPowerOfTwo(N)) {
           throw new Error("FFT radix-2 yêu cầu N là lũy thừa của 2.");
         }
         const stages =
-          fftKind === "DIT" ? simulateDit(samples, N) : simulateDif(samples, N);
+          fftKind === "DIT" ? simulateDit(seq0, N) : simulateDif(seq0, N);
         for (const st of stages) {
           const box = document.createElement("div");
           box.className = "dft-step-block";
@@ -659,16 +812,15 @@ function mountDftSimulator(root) {
         finalSpectrum = stages[stages.length - 1].values;
         resHost.appendChild(renderSpectrumRow(finalSpectrum));
 
-        const refSpectrum = fft(samples);
-        const err = maxAbsDiff(finalSpectrum, refSpectrum);
-        cmpHost.appendChild(
-          document.createTextNode(
-            `Sai số cực đại so với fft(samples) trong dsp: ${err.toExponential(4)} (${fftKind} mô phỏng vs FFT radix-2 DIT).`,
-          ),
+        appendDftCompareAndButterfly(
+          finalSpectrum,
+          seq0,
+          reals,
+          allReal,
+          N,
+          "FFT",
+          fftKind,
         );
-
-        const data = generateButterflyData(N, fftKind);
-        bfHost.appendChild(renderButterflySvg(data));
       }
     } catch (e) {
       errBox.hidden = false;
