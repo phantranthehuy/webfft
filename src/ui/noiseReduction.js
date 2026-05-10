@@ -22,12 +22,21 @@ function injectStyles() {
   injectedStyle = document.createElement("style");
   injectedStyle.id = "noise-reduction-styles";
   injectedStyle.textContent = `
-    .nr-root { display: flex; flex-direction: column; gap: 18px; max-width: 520px; }
-    .nr-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-    .nr-toolbar label.nr-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
-    .nr-toolbar input[type="range"] { width: 200px; accent-color: var(--accent); }
+    .nr-root { display: flex; flex-direction: column; gap: 16px; max-width: 520px; }
+    .nr-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .nr-section-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.02em; }
+    .nr-section-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    label.nr-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+    .nr-field input[type="range"] { width: 200px; accent-color: var(--accent); }
     .nr-readout { font-size: 13px; color: var(--muted); margin: 0; min-height: 2.5em; }
-    .nr-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   `;
   document.head.appendChild(injectedStyle);
 }
@@ -305,14 +314,28 @@ function mountNoiseReduction(root) {
   root.classList.add("nr-root");
   root.innerHTML = "";
 
-  const toolbar = document.createElement("div");
-  toolbar.className = "nr-toolbar";
-
+  const secNoise = document.createElement("section");
+  secNoise.className = "nr-section";
+  const titleNoise = document.createElement("h3");
+  titleNoise.className = "nr-section-title";
+  titleNoise.textContent = "Bước 1 — Ghi mẫu nhiễu";
   const sampleBtn = document.createElement("button");
   sampleBtn.type = "button";
   sampleBtn.className = "ghost-button";
-  sampleBtn.textContent = "Sample Noise";
-  sampleBtn.setAttribute("aria-label", "Ghi 1–2 giây nhiễu và ước phổ trung bình");
+  sampleBtn.textContent = "Ghi mẫu nhiễu (~1.5 s)";
+  sampleBtn.setAttribute(
+    "aria-label",
+    "Ghi khoảng 1,5 giây chỉ có nhiễu để ước lượng phổ trung bình",
+  );
+  secNoise.append(titleNoise, sampleBtn);
+
+  const secNr = document.createElement("section");
+  secNr.className = "nr-section";
+  const titleNr = document.createElement("h3");
+  titleNr.className = "nr-section-title";
+  titleNr.textContent = "Bước 2 — Khử nhiễu (spectral subtraction)";
+  const bodyNr = document.createElement("div");
+  bodyNr.className = "nr-section-body";
 
   const alphaWrap = document.createElement("label");
   alphaWrap.className = "nr-field";
@@ -331,26 +354,30 @@ function mountNoiseReduction(root) {
   const toggleBtn = document.createElement("button");
   toggleBtn.type = "button";
   toggleBtn.className = "ghost-button";
-  toggleBtn.textContent = "Bật khử nhiễu";
+  toggleBtn.textContent = "Khử nhiễu: bật";
   toggleBtn.setAttribute("aria-pressed", "false");
 
-  toolbar.append(sampleBtn, alphaWrap, toggleBtn);
+  bodyNr.append(alphaWrap, toggleBtn);
+  secNr.append(titleNr, bodyNr);
 
-  const actions = document.createElement("div");
-  actions.className = "nr-actions";
+  const secOut = document.createElement("section");
+  secOut.className = "nr-section";
+  const titleOut = document.createElement("h3");
+  titleOut.className = "nr-section-title";
+  titleOut.textContent = "Bước 3 — Xuất âm thanh";
   const recBtn = document.createElement("button");
   recBtn.type = "button";
   recBtn.className = "ghost-button";
-  recBtn.textContent = "Ghi & lưu WAV";
+  recBtn.textContent = "Ghi đầu ra 5 s → tải WAV";
   recBtn.disabled = true;
-  actions.append(recBtn);
+  secOut.append(titleOut, recBtn);
 
   const statusEl = document.createElement("p");
   statusEl.className = "nr-readout";
   statusEl.textContent =
-    "Start Audio (header) hoặc bấm Sample — phổ nhiễu dùng dsp.fft, xử lý 1024 mẫu/khung trong worklet.";
+    "Cần Start Audio (header) hoặc «Ghi mẫu nhiễu» để có micro. Phổ nhiễu: dsp.fft + Hann; xử lý 1024 mẫu/khung trong worklet.";
 
-  root.append(toolbar, actions, statusEl);
+  root.append(secNoise, secNr, secOut, statusEl);
 
   /** @type {AudioContext | null} */
   let ctx = null;
@@ -488,7 +515,7 @@ function mountNoiseReduction(root) {
     }
     ctx = null;
     nrEnabled = false;
-    toggleBtn.textContent = "Bật khử nhiễu";
+    toggleBtn.textContent = "Khử nhiễu: bật";
     toggleBtn.setAttribute("aria-pressed", "false");
     recBtn.disabled = true;
   }
@@ -584,17 +611,17 @@ function mountNoiseReduction(root) {
     toggleBtn.setAttribute("aria-pressed", String(nrEnabled));
     try {
       if (nrEnabled) {
-        toggleBtn.textContent = "Tắt khử nhiễu";
+        toggleBtn.textContent = "Khử nhiễu: tắt";
         await wireNoiseReduction();
         statusEl.textContent = "Khử nhiễu BẬT (worklet 1024, overlap-add 50%).";
       } else {
-        toggleBtn.textContent = "Bật khử nhiễu";
+        toggleBtn.textContent = "Khử nhiễu: bật";
         wireBypassMonitoring();
         statusEl.textContent = "Khử nhiễu TẮT — micro nối thẳng monitor.";
       }
     } catch (e) {
       nrEnabled = false;
-      toggleBtn.textContent = "Bật khử nhiễu";
+      toggleBtn.textContent = "Khử nhiễu: bật";
       toggleBtn.setAttribute("aria-pressed", "false");
       const msg = e instanceof Error ? e.message : String(e);
       statusEl.textContent = `Không khởi tạo worklet: ${msg}`;
@@ -740,6 +767,17 @@ function mountNoiseReduction(root) {
     () => {
       if (!isNoisePanelVisible()) return;
       void attachNoisePipelineFromMic();
+    },
+    { signal },
+  );
+
+  document.addEventListener(
+    "webfft:stop-audio",
+    () => {
+      if (!isNoisePanelVisible()) return;
+      teardownAll();
+      statusEl.textContent =
+        "Micro đã dừng. Bấm Start Audio hoặc «Ghi mẫu nhiễu» để có luồng micro lại.";
     },
     { signal },
   );

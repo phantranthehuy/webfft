@@ -1,6 +1,5 @@
 import {
   ensureAudioContext,
-  ensureMicStream,
   getSharedAudioContext,
   getSharedMediaStream,
   hasLiveMicStream,
@@ -60,6 +59,11 @@ function injectStyles() {
     .dtmf-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .dtmf-status { font-size: 13px; color: var(--muted); margin: 0; }
     .dtmf-help { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 0; max-width: 42rem; }
+    .dtmf-pending-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; max-width: 360px; }
+    .dtmf-pending-readout { font-family: "Space Grotesk", sans-serif; font-size: 22px; font-weight: 600;
+      min-width: 2em; color: var(--accent); letter-spacing: 0.08em; }
+    .dtmf-key.is-pending-choice { border-color: rgba(47, 210, 168, 0.65);
+      box-shadow: 0 0 0 1px rgba(47, 210, 168, 0.35); }
   `;
   document.head.appendChild(style);
 }
@@ -235,17 +239,11 @@ function mountDtmfDecoder(root) {
   const { wrap: srcWrap, sel: srcSel } = makeSelect("Nguồn phân tích", "Nguồn tín hiệu DTMF");
   const optInt = document.createElement("option");
   optInt.value = "internal";
-  optInt.textContent = "Oscillator nội bộ (sau khi bấm phím)";
+  optInt.textContent = "Oscillator nội bộ (Phát tone để nghe)";
   const optMic = document.createElement("option");
   optMic.value = "mic";
-  optMic.textContent = "Micro (cần quyền)";
+  optMic.textContent = "Micro (dùng Start Audio trên header)";
   srcSel.append(optInt, optMic);
-
-  const micBtn = document.createElement("button");
-  micBtn.type = "button";
-  micBtn.className = "ghost-button";
-  micBtn.textContent = "Bật micro";
-  micBtn.setAttribute("aria-label", "Yêu cầu quyền micro để giải mã DTMF");
 
   const clearBtn = document.createElement("button");
   clearBtn.type = "button";
@@ -253,12 +251,12 @@ function mountDtmfDecoder(root) {
   clearBtn.textContent = "Xóa lịch sử";
   clearBtn.setAttribute("aria-label", "Xóa chuỗi đã nhận dạng");
 
-  toolbar.append(srcWrap, micBtn, clearBtn);
+  toolbar.append(srcWrap, clearBtn);
 
   const helpEl = document.createElement("p");
   helpEl.className = "dtmf-help";
   helpEl.textContent =
-    "Hai chế độ «Nguồn phân tích» dùng chung một đồ thị Web Audio: Oscillator nội bộ — tín hiệu phân tích chính là tone do app phát (hai Oscillator → Gain → tap), bạn bấm phím ảo hoặc phím số trên bàn phím; Analyser lấy mẫu từ nhánh đó. Micro — đầu vào là luồng micro (MediaStreamSource → cùng tap); app không phát tone nội bộ khi đang chọn micro để tránh trộn hai nguồn. Trong cả hai trường hợp, mỗi khung hình vẽ lại: đọc miền thời gian từ Analyser, nhân cửa sổ Hann, gọi FFT trong dsp, rồi tìm cặp tần hàng/cột DTMF.";
+    "Oscillator nội bộ: chọn phím trên bàn phím ảo (hoặc phím số), rồi bấm «Phát tone» hoặc Enter — tone mới phát ra; Analyser đọc nhánh synthesizer. Micro: bấm Start Audio trên header rồi chọn nguồn Micro; không phát tone nội bộ để tránh trộn nguồn. Mỗi khung: FFT dsp + Hann trên Analyser, tìm cặp tần DTMF.";
 
   const readout = document.createElement("div");
   readout.className = "dtmf-readout";
@@ -287,10 +285,29 @@ function mountDtmfDecoder(root) {
   keypad.setAttribute("role", "group");
   keypad.setAttribute("aria-label", "Bàn phím DTMF");
 
+  const pendingRow = document.createElement("div");
+  pendingRow.className = "dtmf-pending-row";
+  const pendingLabel = document.createElement("span");
+  pendingLabel.className = "dtmf-meta";
+  pendingLabel.textContent = "Chờ phát:";
+  const pendingEl = document.createElement("span");
+  pendingEl.className = "dtmf-pending-readout";
+  pendingEl.setAttribute("aria-live", "polite");
+  pendingEl.textContent = "—";
+  const playPendingBtn = document.createElement("button");
+  playPendingBtn.type = "button";
+  playPendingBtn.className = "ghost-button";
+  playPendingBtn.textContent = "Phát tone";
+  playPendingBtn.setAttribute(
+    "aria-label",
+    "Phát tone cho phím đã chọn (chế độ nội bộ)",
+  );
+  pendingRow.append(pendingLabel, pendingEl, playPendingBtn);
+
   const statusEl = document.createElement("p");
   statusEl.className = "dtmf-status";
 
-  root.append(toolbar, helpEl, readout, keypad, statusEl);
+  root.append(toolbar, helpEl, readout, keypad, pendingRow, statusEl);
 
   /** @type {AudioContext | null} */
   let audioCtx = null;
@@ -310,6 +327,45 @@ function mountDtmfDecoder(root) {
   let lastEmitAt = 0;
   let stableDigit = /** @type {string | null} */ (null);
   let stableCount = 0;
+
+  /** @type {[number, number] | null} */
+  let pendingRc = null;
+
+  function refreshPendingKeyHighlight() {
+    for (const el of keypad.querySelectorAll(".dtmf-key")) {
+      el.classList.remove("is-pending-choice");
+    }
+    if (!pendingRc) return;
+    const [pr, pc] = pendingRc;
+    const idx = pr * 4 + pc;
+    const btn = keypad.querySelectorAll(".dtmf-key")[idx];
+    if (btn instanceof HTMLElement) {
+      btn.classList.add("is-pending-choice");
+    }
+  }
+
+  /**
+   * @param {number} r
+   * @param {number} c
+   */
+  function setPendingDigit(r, c) {
+    pendingRc = [r, c];
+    pendingEl.textContent = KEY_MATRIX[r][c];
+    refreshPendingKeyHighlight();
+  }
+
+  function commitPlayPending() {
+    if (!pendingRc) {
+      statusEl.textContent =
+        "Chọn một phím DTMF trước, rồi bấm «Phát tone» hoặc Enter.";
+      return;
+    }
+    const [r, c] = pendingRc;
+    playDtmf(ROW_HZ[r], COL_HZ[c]);
+    pendingRc = null;
+    pendingEl.textContent = "—";
+    refreshPendingKeyHighlight();
+  }
 
   /**
    * @param {{ monitorSpeakers: boolean }} opts
@@ -500,7 +556,10 @@ function mountDtmfDecoder(root) {
       btn.addEventListener(
         "click",
         () => {
-          playDtmf(ROW_HZ[r], COL_HZ[c]);
+          if (isMicSource()) return;
+          setPendingDigit(r, c);
+          statusEl.textContent =
+            "Đã chọn phím — bấm «Phát tone» hoặc Enter để phát (chế độ nội bộ).";
         },
         { signal },
       );
@@ -543,11 +602,20 @@ function mountDtmfDecoder(root) {
         Slash: [3, 2],
         KeyD: [3, 3],
       };
+      if (ev.code === "Enter" || ev.code === "NumpadEnter") {
+        if (isMicSource()) return;
+        ev.preventDefault();
+        commitPlayPending();
+        return;
+      }
+
       const idx = map[/** @type {keyof typeof map} */ (ev.code)];
       if (!idx || isMicSource()) return;
       ev.preventDefault();
       const [rk, ck] = idx;
-      playDtmf(ROW_HZ[rk], COL_HZ[ck]);
+      setPendingDigit(rk, ck);
+      statusEl.textContent =
+        "Đã chọn phím — bấm «Phát tone» hoặc Enter để phát (chế độ nội bộ).";
       const b = keypad.querySelectorAll(".dtmf-key")[rk * 4 + ck];
       if (b instanceof HTMLElement) {
         b.classList.add("is-pressed");
@@ -560,45 +628,37 @@ function mountDtmfDecoder(root) {
     { signal },
   );
 
-  async function onMicClick() {
-    micBtn.disabled = true;
-    statusEl.textContent = "Đang mở micro…";
+  async function connectMicGraphFromSharedStream() {
+    statusEl.textContent = "Đang nối micro…";
     try {
-      const { context, stream } = await ensureMicStream();
-      audioCtx = context;
+      const stream = getSharedMediaStream();
+      const ctx = getSharedAudioContext();
+      if (!stream || !ctx) {
+        statusEl.textContent =
+          "Chưa có luồng micro — bấm Start Audio trên header.";
+        return;
+      }
+      audioCtx = ctx;
       ensureGraph({ monitorSpeakers: false });
       wireMicFromSharedStream(stream);
       srcSel.value = "mic";
-      statusEl.textContent = `Micro · ${Math.round(context.sampleRate)} Hz`;
+      statusEl.textContent = `Micro · ${Math.round(ctx.sampleRate)} Hz`;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       statusEl.textContent = `Micro lỗi: ${msg}`;
-    } finally {
-      micBtn.disabled = false;
     }
   }
 
   async function syncMicFromPrimedStartAudio() {
     if (srcSel.value !== "mic") return;
     if (!hasLiveMicStream() || !getSharedAudioContext()) return;
-    try {
-      const stream = getSharedMediaStream();
-      const ctx = getSharedAudioContext();
-      if (!stream || !ctx) return;
-      audioCtx = ctx;
-      ensureGraph({ monitorSpeakers: false });
-      wireMicFromSharedStream(stream);
-      statusEl.textContent = `Micro · ${Math.round(ctx.sampleRate)} Hz`;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      statusEl.textContent = `Micro (đồng bộ): ${msg}`;
-    }
+    await connectMicGraphFromSharedStream();
   }
 
-  micBtn.addEventListener(
+  playPendingBtn.addEventListener(
     "click",
     () => {
-      void onMicClick();
+      commitPlayPending();
     },
     { signal },
   );
@@ -612,11 +672,15 @@ function mountDtmfDecoder(root) {
       if (srcSel.value === "internal") {
         wireInternalTapOnly();
         statusEl.textContent =
-          "Nội bộ: bấm phím để phát tone và đọc FFT trên luồng synthesizer.";
+          "Nội bộ: chọn phím rồi «Phát tone» hoặc Enter; FFT trên luồng synthesizer.";
       } else {
-        statusEl.textContent =
-          "Đang mở micro… (hoặc bấm «Bật micro» / Start Audio trên header)";
-        void onMicClick();
+        if (hasLiveMicStream() && getSharedAudioContext()) {
+          void connectMicGraphFromSharedStream();
+        } else {
+          disconnectMic();
+          statusEl.textContent =
+            "Chọn Start Audio trên header để bật micro (giữ «Micro» làm nguồn phân tích).";
+        }
       }
     },
     { signal },
@@ -636,14 +700,26 @@ function mountDtmfDecoder(root) {
 
   wireInternalTapOnly();
   statusEl.textContent =
-    "Nội bộ: bấm phím để phát tone; FFT (dsp) trên AnalyserNode. Hoặc bật micro.";
+    "Nội bộ: chọn phím rồi «Phát tone» hoặc Enter. Micro: Start Audio trên header.";
   startLoop();
 
   document.addEventListener(
     "webfft:start-audio",
     () => {
       if (srcSel.value !== "mic") return;
-      void onMicClick();
+      void connectMicGraphFromSharedStream();
+    },
+    { signal },
+  );
+
+  document.addEventListener(
+    "webfft:stop-audio",
+    () => {
+      disconnectMic();
+      if (srcSel.value === "mic") {
+        statusEl.textContent =
+          "Micro đã dừng. Bấm Start Audio trên header (giữ nguồn Micro), sau đó vào lại tab nếu cần đồng bộ.";
+      }
     },
     { signal },
   );

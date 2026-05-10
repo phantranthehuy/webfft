@@ -45,6 +45,13 @@ body {
   margin-bottom: 24px;
 }
 
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .brand {
   display: flex;
   flex-direction: column;

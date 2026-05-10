@@ -1,4 +1,4 @@
-import { ensureMicStream } from "./audioEngine.js";
+import { ensureMicStream, releaseSharedMic } from "./audioEngine.js";
 import { createUiManager } from "./ui/uiManager.js";
 import { createDftSimulatorMode } from "./ui/dftSimulator.js";
 import { createSpectrumAnalyzerMode } from "./ui/spectrumAnalyzer.js";
@@ -34,6 +34,7 @@ const modes = {
 const ui = createUiManager({ tabs, panels, modes });
 
 const startAudioButton = document.getElementById("start-audio");
+const stopAudioButton = document.getElementById("stop-audio");
 
 function tabIdFromHash() {
   const id = location.hash.slice(1);
@@ -74,6 +75,10 @@ function bindStartAudio() {
     try {
       await ensureMicStream();
       startAudioButton.textContent = "Audio Ready";
+      if (stopAudioButton) {
+        stopAudioButton.hidden = false;
+        stopAudioButton.disabled = false;
+      }
       document.dispatchEvent(new CustomEvent("webfft:start-audio"));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -106,6 +111,24 @@ function bindStartAudio() {
 bindTabClicks();
 bindHashNavigation();
 bindStartAudio();
+
+function bindStopAudio() {
+  if (!stopAudioButton) return;
+
+  stopAudioButton.addEventListener("click", () => {
+    releaseSharedMic();
+    document.dispatchEvent(new CustomEvent("webfft:stop-audio"));
+    if (startAudioButton) {
+      startAudioButton.textContent = "Start Audio";
+      startAudioButton.disabled = false;
+      startAudioButton.removeAttribute("title");
+    }
+    stopAudioButton.hidden = true;
+    stopAudioButton.disabled = true;
+  });
+}
+
+bindStopAudio();
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;

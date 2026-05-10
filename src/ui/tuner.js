@@ -48,6 +48,9 @@ let tunerMethod = "peak";
 /** @type {number} */
 let rafId = 0;
 
+/** @type {{ hz: number, note: string, cents: number, methodLabel?: string } | null} */
+let tunerHoldReading = null;
+
 /** @type {HTMLCanvasElement | null} */
 let canvasEl = null;
 /** @type {HTMLElement | null} */
@@ -124,6 +127,16 @@ function stopLoop() {
   }
 }
 
+/** @param {Record<string, unknown>} extra */
+function tunerInactiveFrame(extra) {
+  if (!canvasEl) return;
+  drawTunerFrame(canvasEl, {
+    active: false,
+    hold: tunerHoldReading,
+    ...extra,
+  });
+}
+
 function loop() {
   rafId = requestAnimationFrame(loop);
 
@@ -149,7 +162,7 @@ function loop() {
   );
 
   if (!freqBuf || !timeBuf || kMax <= kMin) {
-    drawTunerFrame(canvasEl, { active: false, peakDb: -Infinity });
+    tunerInactiveFrame({ peakDb: -Infinity });
     return;
   }
 
@@ -163,8 +176,7 @@ function loop() {
     analyser.getFloatTimeDomainData(timeBuf);
     hz = yinDetectPitchHz(timeBuf, sr, F_MIN, F_MAX);
     if (hz === null) {
-      drawTunerFrame(canvasEl, {
-        active: false,
+      tunerInactiveFrame({
         peakDb,
         idleHint: "YIN: chưa ổn định — thử âm to, rõ nốt đơn.",
         methodLabel: "YIN",
@@ -173,7 +185,7 @@ function loop() {
     }
   } else {
     if (!Number.isFinite(peakDb) || peakDb < LEVEL_FLOOR_DB) {
-      drawTunerFrame(canvasEl, { active: false, peakDb });
+      tunerInactiveFrame({ peakDb });
       return;
     }
 
@@ -183,17 +195,19 @@ function loop() {
     hz = (binRefined * sr) / FFT_SIZE;
 
     if (!Number.isFinite(hz) || hz < F_MIN || hz > F_MAX) {
-      drawTunerFrame(canvasEl, { active: false, peakDb });
+      tunerInactiveFrame({ peakDb });
       return;
     }
   }
 
   if (hz === null || !Number.isFinite(hz) || hz < F_MIN || hz > F_MAX) {
-    drawTunerFrame(canvasEl, { active: false, peakDb });
+    tunerInactiveFrame({ peakDb });
     return;
   }
 
   const { label, cents } = hzToNoteLabel(hz);
+  const methodLabel = tunerMethod === "yin" ? "YIN" : "đỉnh phổ";
+  tunerHoldReading = { hz, note: label, cents, methodLabel };
 
   drawTunerFrame(canvasEl, {
     active: true,
@@ -201,7 +215,7 @@ function loop() {
     note: label,
     cents,
     peakDb,
-    methodLabel: tunerMethod === "yin" ? "YIN" : "đỉnh phổ",
+    methodLabel,
   });
 }
 
@@ -336,6 +350,15 @@ function mountTunerUi(root) {
     void connectTunerMic();
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
+
+  const onStopAudioEv = () => {
+    teardownAudio();
+    if (statusEl) {
+      statusEl.textContent =
+        "Micro đã dừng. Bấm Start Audio trên header để bật lại và hiển thị cao độ.";
+    }
+  };
+  document.addEventListener("webfft:stop-audio", onStopAudioEv, { signal });
 
   return () => {
     ac.abort();

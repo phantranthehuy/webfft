@@ -357,6 +357,15 @@ function mountSpectrumUi(root) {
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
 
+  const onStopAudioEv = () => {
+    teardownAudio();
+    if (statusEl) {
+      statusEl.textContent =
+        "Micro đã dừng. Bấm Start Audio để lắng nghe lại, sau đó chọn thông số để xem phổ.";
+    }
+  };
+  document.addEventListener("webfft:stop-audio", onStopAudioEv, { signal });
+
   return () => {
     ac.abort();
     ro.disconnect();

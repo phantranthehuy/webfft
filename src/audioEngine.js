@@ -85,6 +85,13 @@ function stopSharedStream() {
 }
 
 /**
+ * Giải phóng luồng micro (dừng mọi track). Giữ AudioContext để tab khác vẫn dùng synth/phát được.
+ */
+export function releaseSharedMic() {
+  stopSharedStream();
+}
+
+/**
  * Tạo hoặc trả về AudioContext dùng chung (không mở micro).
  * Gọi trong handler người dùng trước khi phát Oscillator nếu chưa bấm Start Audio.
  *
