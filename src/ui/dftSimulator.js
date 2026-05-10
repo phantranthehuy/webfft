@@ -393,8 +393,20 @@ function mountDftSimulator(root) {
   const grid = document.createElement("div");
   grid.className = "dft-grid";
 
-  const controls = document.createElement("div");
-  controls.className = "dft-controls";
+  const controlsStack = document.createElement("div");
+  controlsStack.className = "dft-controls-stack";
+
+  const controlsTop = document.createElement("div");
+  controlsTop.className = "dft-controls dft-controls-top";
+
+  const controlsStepWrap = document.createElement("div");
+  controlsStepWrap.className = "dft-controls-full-width";
+
+  const controlsInputWrap = document.createElement("div");
+  controlsInputWrap.className = "dft-controls-full-width";
+
+  const computeRow = document.createElement("div");
+  computeRow.className = "dft-compute-row";
 
   const labMode = document.createElement("label");
   labMode.className = "dft-field";
@@ -566,12 +578,6 @@ function mountDftSimulator(root) {
     if (isPowerOfTwo(N)) {
       if (algo === "DFT") {
         const data = generateButterflyData(N, "DIT");
-        bfHost.appendChild(
-          document.createTextNode(
-            "Gợi ý: với DFT bạn vẫn có thể xem cấu trúc bướm DIT màn hình dưới.",
-          ),
-        );
-        bfHost.appendChild(document.createElement("br"));
         bfHost.appendChild(renderButterflySvg(data));
       } else {
         const data = generateButterflyData(N, fftKind);
@@ -638,11 +644,20 @@ function mountDftSimulator(root) {
 
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "ghost-button";
+  btn.className = "ghost-button dft-compute-primary";
   btn.id = "dft-compute";
   btn.textContent = "Compute";
 
-  controls.append(labMode, labIn, labN, labAlgo, labFft, labStep, stepBar, btn);
+  controlsTop.append(labMode, labN, labAlgo, labFft);
+  controlsStepWrap.append(labStep, stepBar);
+  controlsInputWrap.append(labIn);
+  computeRow.append(btn);
+  controlsStack.append(
+    controlsTop,
+    controlsStepWrap,
+    controlsInputWrap,
+    computeRow,
+  );
 
   selInputMode.addEventListener(
     "change",
@@ -692,7 +707,7 @@ function mountDftSimulator(root) {
   secBf.appendChild(bfHost);
 
   grid.append(
-    controls,
+    controlsStack,
     errBox,
     secTw,
     secSteps,
