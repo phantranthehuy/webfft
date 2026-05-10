@@ -11,8 +11,8 @@ import { formatHz } from "../utils/format.js";
 /** @type {WeakMap<HTMLCanvasElement, boolean>} */
 const wfInitialized = new WeakMap();
 
-const MIN_DB = -100;
-const MAX_DB = -12;
+const MIN_DB = -120;
+const MAX_DB = -10;
 
 /**
  * @param {number} cssWidth

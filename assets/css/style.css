@@ -291,6 +291,56 @@ body {
   resize: vertical;
 }
 
+.dft-choice-toggle {
+  display: inline-flex;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  padding: 3px;
+  gap: 4px;
+}
+
+.dft-choice-btn {
+  appearance: none;
+  border: none;
+  border-radius: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.dft-choice-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dft-choice-btn:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.dft-choice-btn.is-selected {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+
+.dft-choice-btn:focus-visible {
+  outline: 2px solid var(--accent, #6cd49a);
+  outline-offset: 2px;
+}
+
 .dft-field-row {
   flex-direction: row;
   align-items: center;

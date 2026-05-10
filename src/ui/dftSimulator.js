@@ -408,6 +408,54 @@ function mountDftSimulator(root) {
   const computeRow = document.createElement("div");
   computeRow.className = "dft-compute-row";
 
+  /**
+   * @param {HTMLSelectElement} select
+   * @param {readonly (readonly [string, string])[]} options
+   * @param {string} ariaLabel
+   */
+  function createChoiceToggle(select, options, ariaLabel) {
+    select.hidden = true;
+    const wrap = document.createElement("div");
+    wrap.className = "dft-choice-toggle";
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", ariaLabel);
+
+    /** @type {HTMLButtonElement[]} */
+    const buttons = [];
+
+    function sync() {
+      for (const btn of buttons) {
+        const on = btn.dataset.value === select.value;
+        btn.classList.toggle("is-selected", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+        btn.disabled = select.disabled;
+      }
+    }
+
+    for (const [value, title] of options) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dft-choice-btn";
+      btn.dataset.value = value;
+      btn.textContent = title;
+      btn.addEventListener(
+        "click",
+        () => {
+          if (select.disabled || select.value === value) return;
+          select.value = value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+        { signal },
+      );
+      buttons.push(btn);
+      wrap.appendChild(btn);
+    }
+
+    select.addEventListener("change", sync, { signal });
+    sync();
+    return { wrap, sync };
+  }
+
   const labMode = document.createElement("label");
   labMode.className = "dft-field";
   labMode.innerHTML = `<span>Kiểu nhập tín hiệu</span>`;
@@ -421,7 +469,15 @@ function mountDftSimulator(root) {
   optComplex.value = "complex";
   optComplex.textContent = "Phức: N cặp re,im (tách cặp bằng «;» hoặc xuống dòng)";
   selInputMode.append(optReal, optComplex);
-  labMode.appendChild(selInputMode);
+  const inputModeChoice = createChoiceToggle(
+    selInputMode,
+    [
+      ["real", "Thực"],
+      ["complex", "Phức"],
+    ],
+    "Kiểu nhập tín hiệu DFT",
+  );
+  labMode.append(selInputMode, inputModeChoice.wrap);
 
   const labIn = document.createElement("label");
   labIn.className = "dft-field";
@@ -466,7 +522,15 @@ function mountDftSimulator(root) {
     o.textContent = t;
     selAlgo.appendChild(o);
   });
-  labAlgo.appendChild(selAlgo);
+  const algoChoice = createChoiceToggle(
+    selAlgo,
+    [
+      ["DFT", "DFT"],
+      ["FFT", "FFT"],
+    ],
+    "Thuật toán",
+  );
+  labAlgo.append(selAlgo, algoChoice.wrap);
 
   const labFft = document.createElement("label");
   labFft.className = "dft-field";
@@ -480,7 +544,15 @@ function mountDftSimulator(root) {
     selFft.appendChild(o);
   });
   selFft.disabled = true;
-  labFft.appendChild(selFft);
+  const fftChoice = createChoiceToggle(
+    selFft,
+    [
+      ["DIT", "DIT"],
+      ["DIF", "DIF"],
+    ],
+    "Kiểu FFT radix-2",
+  );
+  labFft.append(selFft, fftChoice.wrap);
 
   const labStep = document.createElement("label");
   labStep.className = "dft-field dft-field-row";
@@ -740,12 +812,14 @@ function mountDftSimulator(root) {
     () => {
       fillNOptions();
       selFft.disabled = selAlgo.value !== "FFT";
+      fftChoice.sync();
       chkStepK.disabled = selAlgo.value !== "DFT";
       if (chkStepK.disabled) {
         chkStepK.checked = false;
         dftStepSession = null;
         stepBar.hidden = true;
       }
+      algoChoice.sync();
     },
     { signal },
   );

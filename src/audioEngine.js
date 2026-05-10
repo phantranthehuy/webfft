@@ -18,6 +18,16 @@ let resumeButton = null;
 /** @type {(() => void) | null} */
 let resumeStateListener = null;
 
+const RAW_MIC_CONSTRAINTS = {
+  audio: {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    channelCount: { ideal: 1 },
+    sampleRate: { ideal: 48000 },
+  },
+};
+
 /** Ẩn nút Resume khi đang ở tab không dùng audio (vd Simulator). */
 let resumeUiSuppressed = false;
 
@@ -27,6 +37,14 @@ let resumeUiSuppressed = false;
  */
 function isPowerOfTwoInRange(n) {
   return Number.isInteger(n) && n >= 32 && n <= 32768 && (n & (n - 1)) === 0;
+}
+
+function createPreferredAudioContext() {
+  try {
+    return new AudioContext({ sampleRate: 48000 });
+  } catch {
+    return new AudioContext();
+  }
 }
 
 function syncResumeButtonVisibility(context) {
@@ -122,7 +140,7 @@ export function releaseSharedMic() {
  */
 export function ensureAudioContext() {
   if (!sharedContext) {
-    sharedContext = new AudioContext();
+    sharedContext = createPreferredAudioContext();
   }
   ensureResumeUi(sharedContext);
   void sharedContext.resume();
@@ -144,13 +162,7 @@ export async function initAudio() {
   stopSharedStream();
 
   try {
-    sharedStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
+    sharedStream = await navigator.mediaDevices.getUserMedia(RAW_MIC_CONSTRAINTS);
   } catch {
     /* Một số thiết bị/Android từ chối ràng buộc chi tiết — thử profile đơn giản. */
     sharedStream = await navigator.mediaDevices.getUserMedia({ audio: true });
