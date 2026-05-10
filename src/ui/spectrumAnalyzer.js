@@ -1,6 +1,5 @@
 import {
   createAnalyser,
-  ensureAudioContext,
   ensureMicStream,
   hasLiveMicStream,
   getSharedAudioContext,
@@ -19,14 +18,11 @@ import {
 /** @typedef {'linear' | 'log'} SpectrumScale */
 /** @typedef {'bar' | 'waterfall'} SpectrumMode */
 /** @typedef {'none' | 'hanning' | 'hamming' | 'blackman'} SpectrumWindow */
-/** @typedef {'mic' | 'test'} SpectrumSource */
 
 /** @type {AudioContext | null} */
 let ctxAudio = null;
 /** @type {MediaStreamAudioSourceNode | null} */
 let srcNode = null;
-/** @type {OscillatorNode | null} */
-let oscNode = null;
 /** @type {GainNode | null} */
 let muteOut = null;
 /** @type {AnalyserNode | null} */
@@ -34,14 +30,12 @@ let analyser = null;
 /** @type {number} */
 let rafId = 0;
 
-/** @type {{ fftSize: number, scale: SpectrumScale, mode: SpectrumMode, window: SpectrumWindow, source: SpectrumSource, testHz: number }} */
+/** @type {{ fftSize: number, scale: SpectrumScale, mode: SpectrumMode, window: SpectrumWindow }} */
 let params = {
   fftSize: 2048,
   scale: "log",
   mode: "bar",
   window: "none",
-  source: "mic",
-  testHz: 20000,
 };
 
 /** @type {HTMLCanvasElement | null} */
@@ -103,12 +97,7 @@ function startLoop() {
 
 function teardownAudio() {
   stopLoop();
-  try {
-    oscNode?.stop();
-  } catch {
-    /* ignore */
-  }
-  for (const n of [srcNode, oscNode, analyser, muteOut]) {
+  for (const n of [srcNode, analyser, muteOut]) {
     try {
       n?.disconnect();
     } catch {
@@ -116,7 +105,6 @@ function teardownAudio() {
     }
   }
   srcNode = null;
-  oscNode = null;
   analyser = null;
   muteOut = null;
   ctxAudio = null;
@@ -214,33 +202,6 @@ function wireAnalyser(fftSize) {
   analyser.connect(muteOut);
 }
 
-function connectAnalyzerTestTone() {
-  teardownAudio();
-  const context = ensureAudioContext();
-  ctxAudio = context;
-
-  muteOut = context.createGain();
-  muteOut.gain.value = 0;
-  muteOut.connect(context.destination);
-
-  analyser = createAnalyser(params.fftSize);
-  analyser.smoothingTimeConstant = 0;
-  analyser.minDecibels = -120;
-  analyser.maxDecibels = -10;
-
-  oscNode = context.createOscillator();
-  oscNode.type = "sine";
-  oscNode.frequency.setValueAtTime(params.testHz, context.currentTime);
-  oscNode.connect(analyser);
-  analyser.connect(muteOut);
-  oscNode.start();
-
-  micInfoText = `test tone ${formatHz(params.testHz)} nội bộ`;
-  resetSpectrumWaterfall(/** @type {HTMLCanvasElement} */ (canvasEl));
-  renderAnalyzerStatus();
-  startLoop();
-}
-
 /**
  * Nối Analyser với micro (tái dùng sau Start Audio nếu đã có luồng).
  */
@@ -280,29 +241,13 @@ async function connectAnalyzerMicIfPrimed() {
   await connectAnalyzerMic();
 }
 
-function applyControlsFromUi(selSource, inputTestHz, selFft, selScale, selMode, selWin) {
-  const prevSource = params.source;
-  const prevFftSize = params.fftSize;
+function applyControlsFromUi(selFft, selScale, selMode, selWin) {
   params.fftSize = Number(selFft.value);
   params.scale = /** @type {SpectrumScale} */ (selScale.value);
   params.mode = /** @type {SpectrumMode} */ (selMode.value);
   params.window = /** @type {SpectrumWindow} */ (selWin.value);
-  params.source = /** @type {SpectrumSource} */ (selSource.value);
-  params.testHz = Math.max(1, Math.min(24000, Number(inputTestHz.value) || 20000));
 
-  inputTestHz.disabled = params.source !== "test";
-
-  if (params.source === "test") {
-    if (!oscNode || prevSource !== "test" || prevFftSize !== params.fftSize) {
-      connectAnalyzerTestTone();
-      return;
-    }
-    oscNode.frequency.setValueAtTime(params.testHz, ctxAudio?.currentTime ?? 0);
-    micInfoText = `test tone ${formatHz(params.testHz)} nội bộ`;
-  } else if (prevSource === "test") {
-    void connectAnalyzerMic();
-    return;
-  } else if (analyser && ctxAudio && srcNode) {
+  if (analyser && ctxAudio && srcNode) {
     wireAnalyser(params.fftSize);
   }
   if (canvasEl) {
@@ -384,26 +329,52 @@ function mountSpectrumUi(root) {
     return wrap;
   };
 
-  const selSource = document.createElement("select");
-  selSource.setAttribute("aria-label", "Nguồn analyzer");
-  for (const { v, t } of [
-    { v: "mic", t: "Micro" },
-    { v: "test", t: "Test tone" },
-  ]) {
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = t;
-    selSource.appendChild(o);
-  }
+  /**
+   * @param {HTMLSelectElement} select
+   * @param {readonly (readonly [string, string])[]} options
+   * @param {string} ariaLabel
+   */
+  function createChoiceToggle(select, options, ariaLabel) {
+    select.hidden = true;
+    const wrap = document.createElement("div");
+    wrap.className = "spectrum-choice-toggle";
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", ariaLabel);
 
-  const inputTestHz = document.createElement("input");
-  inputTestHz.type = "number";
-  inputTestHz.min = "1";
-  inputTestHz.max = "24000";
-  inputTestHz.step = "1";
-  inputTestHz.value = String(params.testHz);
-  inputTestHz.disabled = true;
-  inputTestHz.setAttribute("aria-label", "Tần số test tone Hz");
+    /** @type {HTMLButtonElement[]} */
+    const buttons = [];
+
+    function sync() {
+      for (const btn of buttons) {
+        const on = btn.dataset.value === select.value;
+        btn.classList.toggle("is-selected", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      }
+    }
+
+    for (const [value, title] of options) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "spectrum-choice-btn";
+      btn.dataset.value = value;
+      btn.textContent = title;
+      btn.addEventListener(
+        "click",
+        () => {
+          if (select.value === value) return;
+          select.value = value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        },
+        { signal },
+      );
+      buttons.push(btn);
+      wrap.appendChild(btn);
+    }
+
+    select.addEventListener("change", sync, { signal });
+    sync();
+    return wrap;
+  }
 
   const selFft = document.createElement("select");
   selFft.setAttribute("aria-label", "FFT size");
@@ -414,6 +385,15 @@ function mountSpectrumUi(root) {
     if (n === 2048) o.selected = true;
     selFft.appendChild(o);
   }
+  const fftChoice = createChoiceToggle(
+    selFft,
+    [
+      ["1024", "1024"],
+      ["2048", "2048"],
+      ["4096", "4096"],
+    ],
+    "FFT size",
+  );
 
   const selScale = document.createElement("select");
   selScale.setAttribute("aria-label", "Thang biên độ");
@@ -428,6 +408,14 @@ function mountSpectrumUi(root) {
     selScale.appendChild(o);
   }
   selScale.value = "log";
+  const scaleChoice = createChoiceToggle(
+    selScale,
+    [
+      ["linear", "Linear"],
+      ["log", "Log (dB)"],
+    ],
+    "Thang biên độ",
+  );
 
   const selMode = document.createElement("select");
   selMode.setAttribute("aria-label", "Kiểu hiển thị");
@@ -441,6 +429,14 @@ function mountSpectrumUi(root) {
     o.textContent = t;
     selMode.appendChild(o);
   }
+  const modeChoice = createChoiceToggle(
+    selMode,
+    [
+      ["bar", "Thanh"],
+      ["waterfall", "Waterfall"],
+    ],
+    "Kiểu hiển thị",
+  );
 
   const selWin = document.createElement("select");
   selWin.setAttribute("aria-label", "Cửa sổ minh họa dsp");
@@ -455,14 +451,22 @@ function mountSpectrumUi(root) {
     o.textContent = t;
     selWin.appendChild(o);
   }
+  const winChoice = createChoiceToggle(
+    selWin,
+    [
+      ["none", "Không overlay"],
+      ["hanning", "Hann"],
+      ["hamming", "Hamming"],
+      ["blackman", "Blackman"],
+    ],
+    "Cửa sổ minh họa dsp",
+  );
 
   toolbar.append(
-    mkField("Nguồn", selSource),
-    mkField("Test Hz", inputTestHz),
-    mkField("FFT size", selFft),
-    mkField("Thang", selScale),
-    mkField("Hiển thị", selMode),
-    mkField("Cửa sổ (dsp)", selWin),
+    mkField("FFT size", fftChoice),
+    mkField("Thang", scaleChoice),
+    mkField("Hiển thị", modeChoice),
+    mkField("Cửa sổ (dsp)", winChoice),
   );
 
   canvasWrap = document.createElement("div");
@@ -481,17 +485,15 @@ function mountSpectrumUi(root) {
   appendChildren(root, toolbar, canvasWrap, statusEl);
 
   const onParamChange = () => {
-    applyControlsFromUi(selSource, inputTestHz, selFft, selScale, selMode, selWin);
+    applyControlsFromUi(selFft, selScale, selMode, selWin);
   };
 
-  selSource.addEventListener("change", onParamChange, { signal });
-  inputTestHz.addEventListener("change", onParamChange, { signal });
   selFft.addEventListener("change", onParamChange, { signal });
   selScale.addEventListener("change", onParamChange, { signal });
   selMode.addEventListener("change", onParamChange, { signal });
   selWin.addEventListener("change", onParamChange, { signal });
 
-  applyControlsFromUi(selSource, inputTestHz, selFft, selScale, selMode, selWin);
+  applyControlsFromUi(selFft, selScale, selMode, selWin);
 
   const ro = new ResizeObserver(() => {
     if (canvasEl && canvasWrap) {
@@ -501,11 +503,7 @@ function mountSpectrumUi(root) {
   ro.observe(canvasWrap);
 
   const onStartAudioEv = () => {
-    if (params.source === "test") {
-      connectAnalyzerTestTone();
-    } else {
-      void connectAnalyzerMic();
-    }
+    void connectAnalyzerMic();
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
 

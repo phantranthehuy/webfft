@@ -69,7 +69,12 @@ export function drawTunerFrame(canvas, state) {
   ctx.fillRect(0, 0, cssW, cssH);
 
   const pad = 18;
-  const centerY = cssH * 0.38;
+  /** Khối nốt / Hz đặt cao hơn một chút; các dòng cách nhau rộng hơn */
+  const centerY = cssH * 0.31;
+  const noteDy = -14;
+  const hzDyMul = 0.56;
+  const holdHintDyMul = 0.92;
+  const gaugeAfterNoteMul = 1.08;
   const noteSize = Math.min(56, cssW * 0.14);
 
   ctx.textAlign = "center";
@@ -89,18 +94,22 @@ export function drawTunerFrame(canvas, state) {
 
       ctx.fillStyle = muted;
       ctx.font = `600 ${Math.round(noteSize * 0.88)}px "IBM Plex Sans", system-ui, sans-serif`;
-      ctx.fillText(note, cssW / 2, centerY - 8);
+      ctx.fillText(note, cssW / 2, centerY + noteDy);
 
       ctx.font = `500 14px "IBM Plex Mono", ui-monospace, monospace`;
       const hzLine = hold.methodLabel
         ? `${hz.toFixed(1)} Hz · ${hold.methodLabel}`
         : `${hz.toFixed(1)} Hz`;
-      ctx.fillText(hzLine, cssW / 2, centerY + noteSize * 0.38);
+      ctx.fillText(hzLine, cssW / 2, centerY + noteSize * hzDyMul);
 
       ctx.font = `400 12px "IBM Plex Sans", system-ui, sans-serif`;
-      ctx.fillText("Giữ giá trị cuối — chờ tín hiệu mới", cssW / 2, centerY + noteSize * 0.62);
+      ctx.fillText(
+        "Giữ giá trị cuối — chờ tín hiệu mới",
+        cssW / 2,
+        centerY + noteSize * holdHintDyMul,
+      );
 
-      const gaugeTop = centerY + noteSize * 0.72;
+      const gaugeTop = centerY + noteSize * gaugeAfterNoteMul;
       const gaugeH = 44;
       const gw = cssW - pad * 2;
       const gx = pad;
@@ -183,16 +192,16 @@ export function drawTunerFrame(canvas, state) {
 
   ctx.fillStyle = text;
   ctx.font = `700 ${Math.round(noteSize)}px "IBM Plex Sans", system-ui, sans-serif`;
-  ctx.fillText(note, cssW / 2, centerY - 8);
+  ctx.fillText(note, cssW / 2, centerY + noteDy);
 
   ctx.fillStyle = muted;
   ctx.font = `500 15px "IBM Plex Mono", ui-monospace, monospace`;
   const hzLine = state.methodLabel
     ? `${hz.toFixed(1)} Hz · ${state.methodLabel}`
     : `${hz.toFixed(1)} Hz`;
-  ctx.fillText(hzLine, cssW / 2, centerY + noteSize * 0.42);
+  ctx.fillText(hzLine, cssW / 2, centerY + noteSize * hzDyMul);
 
-  const gaugeTop = centerY + noteSize * 0.72;
+  const gaugeTop = centerY + noteSize * gaugeAfterNoteMul;
   const gaugeH = 44;
   const gw = cssW - pad * 2;
   const gx = pad;

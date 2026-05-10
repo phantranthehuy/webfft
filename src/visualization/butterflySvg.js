@@ -6,9 +6,9 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm";
  * @typedef {{ N: number, type: string, stages: StageBlock[] }} ButterflyData
  */
 
-const DEFAULT_STAGE_GAP = 120;
-const DEFAULT_WIRE_GAP = 40;
-const NODE_R = 4;
+const DEFAULT_STAGE_GAP = 168;
+const DEFAULT_WIRE_GAP = 48;
+const NODE_R = 4.5;
 
 /**
  * @param {number} i
@@ -49,30 +49,48 @@ function twiddleExponent(N, type, stageIndex, bf) {
   return j * (N / groupSize);
 }
 
+const UNICODE_SUB_DIGITS = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"];
+const UNICODE_SUP_DIGITS = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+
 /**
- * @param {number} N
- * @param {number} k
+ * @param {string} s
+ * @param {string[]} map
  */
-function twiddleTex(N, k) {
-  return `W_{${N}}^{${k}}`;
+function mapAsciiDigits(s, map) {
+  let out = "";
+  for (const ch of String(s)) {
+    const d = ch.charCodeAt(0) - 48;
+    out += d >= 0 && d <= 9 ? map[d] : ch;
+  }
+  return out;
+}
+
+/** Chuỗi một khối Wₙᵏ (Unicode) — tránh `<tspan>`/baseline-shift (Safari hay vỡ vị trí). */
+function formatTwiddleUnicode(N, kInt) {
+  return `W${mapAsciiDigits(String(N), UNICODE_SUB_DIGITS)}${mapAsciiDigits(String(kInt), UNICODE_SUP_DIGITS)}`;
 }
 
 /**
- * @param {string} tex
- * @param {number} N
- * @param {number} k
- * @param {number} fontPx
+ * Nhãn twiddle trên nhánh chéo — `<g translate>` + `<text>` một dòng (ổn định hơn khi có zoom).
+ * @param {import("d3").Selection} parentG
  */
-function twiddleLabelInner(tex, N, k, fontPx) {
-  const katex = globalThis.katex;
-  if (katex?.renderToString) {
-    return katex.renderToString(tex, {
-      throwOnError: false,
-      displayMode: false,
-    });
-  }
-  return `<span style="font-size:${fontPx}px;font-family:IBM Plex Sans,system-ui,sans-serif;">W<sub>${N}</sub><sup>${k}</sup></span>`;
+function appendTwiddleSvgText(parentG, N, kInt, cx, cy) {
+  const lg = parentG
+    .append("g")
+    .attr("class", "bf-twiddle-g")
+    .attr("transform", `translate(${cx}, ${cy + 14})`);
+  lg.append("text")
+    .attr("class", "bf-twiddle")
+    .attr("text-anchor", "middle")
+    .attr("font-size", 13)
+    .attr("font-weight", "600")
+    .text(formatTwiddleUnicode(N, kInt));
 }
+
+/** Nhánh chéo xuống: twiddle đặt dưới nhánh, gần giữa để dễ đọc. */
+const TWIDDLE_ON_DOWN_DIAG_T = 0.58;
+/** Nhãn trừ đặt ngay trước nút cộng/trừ phía dưới. */
+const MINUS_NEAR_RIGHT_T = 0.9;
 
 /**
  * @param {string | HTMLElement} containerId
@@ -123,10 +141,10 @@ export function drawButterfly(containerId, data, opts = {}) {
   const stageGap = opts.stageGap ?? DEFAULT_STAGE_GAP;
   const wireGap = opts.wireGap ?? DEFAULT_WIRE_GAP;
   const margin = {
-    top: opts.margin?.top ?? 40,
-    right: opts.margin?.right ?? 56,
-    bottom: opts.margin?.bottom ?? 28,
-    left: opts.margin?.left ?? 56,
+    top: opts.margin?.top ?? 132,
+    right: opts.margin?.right ?? 116,
+    bottom: opts.margin?.bottom ?? 52,
+    left: opts.margin?.left ?? 260,
   };
 
   const { N, type, stages } = data;
@@ -144,10 +162,11 @@ export function drawButterfly(containerId, data, opts = {}) {
   root.style.width = "100%";
   root.style.maxWidth = "100%";
   root.style.boxSizing = "border-box";
-  root.style.minHeight = "min(240px, 60vh)";
+  root.style.minHeight = N >= 8 ? "min(560px, 72vh)" : "min(320px, 60vh)";
 
   const suffix = uniqueSuffix(root);
   const arrowMarkerId = `bf-arrow-${suffix}`;
+  const outputArrowMarkerId = `bf-output-arrow-${suffix}`;
 
   const tooltip = document.createElement("div");
   tooltip.className = "bf-d3-tooltip";
@@ -201,7 +220,21 @@ export function drawButterfly(containerId, data, opts = {}) {
     .attr("d", "M 0 0 L 10 5 L 0 10 z")
     .attr("fill", "var(--bf-arrow, #2fd2a8)");
 
+  defs
+    .append("marker")
+    .attr("id", outputArrowMarkerId)
+    .attr("viewBox", "0 0 10 10")
+    .attr("refX", 9)
+    .attr("refY", 5)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
+    .attr("orient", "auto")
+    .append("path")
+    .attr("d", "M 0 0 L 10 5 L 0 10 z")
+    .attr("fill", "#e6eef5");
+
   const arrowUrl = `url(#${arrowMarkerId})`;
+  const outputArrowUrl = `url(#${outputArrowMarkerId})`;
 
   const inner = svg.append("g").attr("class", "bf-zoom-layer");
 
@@ -209,35 +242,130 @@ export function drawButterfly(containerId, data, opts = {}) {
     .append("style")
     .text(`
       .bf-d3-svg text { font-family: "IBM Plex Sans", system-ui, sans-serif; }
-      .bf-wire { stroke: rgba(255,255,255,0.14); stroke-width: 1.2; fill: none; }
-      .bf-node { fill: #e6eef5; stroke: rgba(0,0,0,0.12); stroke-width: 0.5; }
-      .bf-cap { fill: #9fb0bf; font-size: 12px; }
-      .bf-minus { fill: #a8e6ff; font-size: 12px; font-weight: 600; }
-      .bf-x-diag { stroke: #2fd2a8; stroke-width: 1.35; fill: none; opacity: 0.95; }
+      .bf-bg { fill: #11171d; }
+      .bf-title { fill: #eef7ff; font-size: 18px; font-weight: 700; letter-spacing: 0.08em; }
+      .bf-stage-label { fill: #d7e7f4; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; }
+      .bf-stage-separator { stroke: rgba(255,255,255,0.13); stroke-width: 1; stroke-dasharray: 5 8; }
+      .bf-note-box { fill: rgba(20,29,36,0.94); stroke: rgba(47,210,168,0.32); stroke-width: 1; }
+      .bf-note-text { fill: #b8c8d6; font-size: 10.5px; font-style: italic; }
+      .bf-wire { stroke: rgba(47,210,168,0.58); stroke-width: 1.25; fill: none; }
+      .bf-output-arrow { stroke: #e6eef5; stroke-width: 1.2; fill: none; }
+      .bf-node { fill: #f4f8fb; stroke: rgba(17,23,29,0.65); stroke-width: 0.7; }
+      .bf-cap { fill: #d9e5ee; font-size: 12px; font-weight: 600; }
+      .bf-twiddle-g { pointer-events: none; }
+      .bf-twiddle { fill: #f1f7fb; font-family: "IBM Plex Sans", system-ui, sans-serif; }
+      .bf-minus { fill: #f1f7fb; font-size: 12px; font-weight: 700; }
+      .bf-x-diag { stroke: #35d6df; stroke-width: 1.45; fill: none; opacity: 0.96; }
       .bf-x-diag.is-dim { stroke: rgba(47,210,168,0.35); }
       .bf-butterfly:hover .bf-x-diag { stroke: #ff9f43; stroke-width: 2; }
       .bf-butterfly:hover .bf-node-hit { fill: rgba(255,159,67,0.35); }
     `);
 
   inner
-    .append("text")
-    .attr("class", "bf-cap")
-    .attr("x", margin.left)
-    .attr("y", 18)
-    .text(`Radix-2 ${type} · N = ${N}`);
+    .append("rect")
+    .attr("class", "bf-bg")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", plotWidth)
+    .attr("height", plotHeight)
+    .attr("rx", 18);
 
-  const wireX0 = Math.max(8, margin.left - 24);
-  const wireX1 = stageX(numStages) + 24;
+  inner
+    .append("text")
+    .attr("class", "bf-title")
+    .attr("x", plotWidth / 2)
+    .attr("y", 34)
+    .attr("text-anchor", "middle")
+    .text(`FAST FOURIER TRANSFORM (FFT) • RADIX-2 ${type} • N = ${N}`);
+
+  const wireX0 = Math.max(18, margin.left - 34);
+  const wireX1 = stageX(numStages) + 34;
+  const outputLabelX = wireX1 + 48;
+  const separatorTop = margin.top - 44;
+  const separatorBottom = wireY(N - 1) + 28;
+
+  for (let s = 0; s < numStages; s++) {
+    const x0 = stageX(s);
+    const x1 = stageX(s + 1);
+    inner
+      .append("text")
+      .attr("class", "bf-stage-label")
+      .attr("x", (x0 + x1) / 2)
+      .attr("y", margin.top - 54)
+      .attr("text-anchor", "middle")
+      .text(`STAGE ${s + 1}`);
+  }
+
+  for (let s = 1; s < numStages; s++) {
+    const x = stageX(s) - stageGap / 2;
+    inner
+      .append("line")
+      .attr("class", "bf-stage-separator")
+      .attr("x1", x)
+      .attr("y1", separatorTop)
+      .attr("x2", x)
+      .attr("y2", separatorBottom);
+  }
+
+  const noteX = 18;
+  const noteY = 64;
+  inner
+    .append("rect")
+    .attr("class", "bf-note-box")
+    .attr("x", noteX)
+    .attr("y", noteY)
+    .attr("width", Math.min(238, margin.left - 24))
+    .attr("height", 48)
+    .attr("rx", 10);
+  const note = inner
+    .append("text")
+    .attr("class", "bf-note-text")
+    .attr("x", noteX + 12)
+    .attr("y", noteY + 18);
+  note.append("tspan").attr("x", noteX + 12).text("*Input: Bit-Reversed Order");
+  note
+    .append("tspan")
+    .attr("x", noteX + 12)
+    .attr("dy", 15)
+    .text("(e.g., 000 → 000, 001 → 100)*");
 
   for (let w = 0; w < N; w++) {
     const y = wireY(w);
+    if (numStages === 0) {
+      inner
+        .append("line")
+        .attr("class", "bf-wire")
+        .attr("x1", wireX0)
+        .attr("y1", y)
+        .attr("x2", wireX1)
+        .attr("y2", y)
+        .attr("marker-end", arrowUrl);
+      continue;
+    }
     inner
       .append("line")
       .attr("class", "bf-wire")
       .attr("x1", wireX0)
       .attr("y1", y)
-      .attr("x2", wireX1)
+      .attr("x2", stageX(0))
       .attr("y2", y);
+    for (let c = 0; c < numStages; c++) {
+      inner
+        .append("line")
+        .attr("class", "bf-wire")
+        .attr("x1", stageX(c))
+        .attr("y1", y)
+        .attr("x2", stageX(c + 1))
+        .attr("y2", y);
+    }
+    inner
+      .append("line")
+      .attr("class", "bf-output-arrow")
+      .attr("x1", stageX(numStages))
+      .attr("y1", y)
+      .attr("x2", wireX1)
+      .attr("y2", y)
+      .attr("marker-end", outputArrowUrl);
   }
 
   for (let col = 0; col <= numStages; col++) {
@@ -279,7 +407,7 @@ export function drawButterfly(containerId, data, opts = {}) {
     inner
       .append("text")
       .attr("class", "bf-cap")
-      .attr("x", wireX1 + 8)
+      .attr("x", outputLabelX)
       .attr("y", y + 4)
       .attr("text-anchor", "start")
       .text(rightLabels[i]);
@@ -292,56 +420,43 @@ export function drawButterfly(containerId, data, opts = {}) {
     for (const bf of stageBlock.butterflies) {
       const yt = wireY(bf.topWire);
       const yb = wireY(bf.bottomWire);
-      const xm = (x0 + x1) / 2;
-      const ym = (yt + yb) / 2;
       const kExp = twiddleExponent(N, type, sIdx, bf);
       const kInt = Math.round(kExp);
-      const tex = twiddleTex(N, kInt);
+
+      const twx =
+        x0 + TWIDDLE_ON_DOWN_DIAG_T * (x1 - x0);
+      const twy =
+        yt + TWIDDLE_ON_DOWN_DIAG_T * (yb - yt);
+
+      const mx = x0 + MINUS_NEAR_RIGHT_T * (x1 - x0);
+      const my = yb;
 
       const g = inner.append("g").attr("class", "bf-butterfly");
 
       g.append("path")
         .attr("class", "bf-x-diag")
-        .attr("d", `M ${x0} ${yt} L ${x1} ${yb}`)
-        .attr("marker-end", arrowUrl);
+        .attr("d", `M ${x0} ${yt} L ${x1} ${yb}`);
 
       g.append("path")
         .attr("class", "bf-x-diag")
-        .attr("d", `M ${x0} ${yb} L ${x1} ${yt}`)
-        .attr("marker-end", arrowUrl);
+        .attr("d", `M ${x0} ${yb} L ${x1} ${yt}`);
 
-      const tMinus = 0.72;
-      const lx = x0 + tMinus * (x1 - x0);
-      const ly = yt + tMinus * (yb - yt);
       g.append("text")
         .attr("class", "bf-minus")
-        .attr("x", lx + 6)
-        .attr("y", ly + 4)
+        .attr("x", mx - 6)
+        .attr("y", my - 7)
+        .attr("text-anchor", "middle")
         .text("−1");
 
-      const fo = g
-        .append("foreignObject")
-        .attr("x", xm - 44)
-        .attr("y", ym - 22)
-        .attr("width", 88)
-        .attr("height", 36);
-
-      fo.append("xhtml:div")
-        .attr("xmlns", "http://www.w3.org/1999/xhtml")
-        .style("display", "flex")
-        .style("justify-content", "center")
-        .style("align-items", "center")
-        .style("height", "100%")
-        .style("font-size", "12px")
-        .html(twiddleLabelInner(tex, N, kInt, 12));
+      appendTwiddleSvgText(g, N, kInt, twx, twy);
 
       const fmt = (z) => z.toFixed(4).replace(/\.?0+$/, "") || "0";
       const twStr = `${fmt(bf.twiddleReal)} ${bf.twiddleImag >= 0 ? "+" : "−"} ${fmt(Math.abs(bf.twiddleImag))}i`;
 
       g.append("circle")
         .attr("class", "bf-node-hit")
-        .attr("cx", xm)
-        .attr("cy", ym)
+        .attr("cx", twx)
+        .attr("cy", twy)
         .attr("r", 14)
         .attr("fill", "transparent")
         .style("cursor", "pointer");
@@ -380,6 +495,18 @@ export function drawButterfly(containerId, data, opts = {}) {
     }
   });
 
+  for (let col = 0; col <= numStages; col++) {
+    const x = stageX(col);
+    for (let w = 0; w < N; w++) {
+      inner
+        .append("circle")
+        .attr("class", "bf-node")
+        .attr("cx", x)
+        .attr("cy", wireY(w))
+        .attr("r", NODE_R);
+    }
+  }
+
   const zoom = d3
     .zoom()
     .scaleExtent([0.25, 5])
@@ -390,12 +517,12 @@ export function drawButterfly(containerId, data, opts = {}) {
   svg.call(zoom);
 
   const rawZoom =
-    opts.initialZoomScale !== undefined ? opts.initialZoomScale : 0.7;
+    opts.initialZoomScale !== undefined ? opts.initialZoomScale : 1;
   const k = Math.min(
     5,
     Math.max(0.25, typeof rawZoom === "number" && Number.isFinite(rawZoom)
       ? rawZoom
-      : 0.7),
+      : 1),
   );
   const cx = plotWidth / 2;
   const cy = plotHeight / 2;
