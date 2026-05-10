@@ -113,6 +113,7 @@ function uniqueSuffix(root) {
  *   stageGap?: number,
  *   wireGap?: number,
  *   margin?: { top?: number, right?: number, bottom?: number, left?: number },
+ *   initialZoomScale?: number,
  * }} [opts]
  * @returns {SVGSVGElement}
  */
@@ -387,6 +388,21 @@ export function drawButterfly(containerId, data, opts = {}) {
     });
 
   svg.call(zoom);
+
+  const rawZoom =
+    opts.initialZoomScale !== undefined ? opts.initialZoomScale : 0.7;
+  const k = Math.min(
+    5,
+    Math.max(0.25, typeof rawZoom === "number" && Number.isFinite(rawZoom)
+      ? rawZoom
+      : 0.7),
+  );
+  const cx = plotWidth / 2;
+  const cy = plotHeight / 2;
+  svg.call(
+    zoom.transform,
+    d3.zoomIdentity.translate(cx, cy).scale(k).translate(-cx, -cy),
+  );
 
   root.append(svg.node());
 
