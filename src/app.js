@@ -1,4 +1,4 @@
-import { initAudio } from "./audioEngine.js";
+import { ensureMicStream } from "./audioEngine.js";
 import { createUiManager } from "./ui/uiManager.js";
 import { createDftSimulatorMode } from "./ui/dftSimulator.js";
 import { createSpectrumAnalyzerMode } from "./ui/spectrumAnalyzer.js";
@@ -57,21 +57,50 @@ function bindHashNavigation() {
 }
 
 function bindStartAudio() {
-  startAudioButton?.addEventListener("click", async () => {
-    if (!startAudioButton) return;
+  if (!startAudioButton) return;
+
+  /** Tránh gọi hai lần trên Android (pointerup cảm ứng + click). */
+  let lastStartAt = -Infinity;
+  let inFlight = false;
+
+  const run = async () => {
+    const now = performance.now();
+    if (inFlight || now - lastStartAt < 450) return;
+    lastStartAt = now;
+    inFlight = true;
     startAudioButton.disabled = true;
     startAudioButton.textContent = "Đang mở…";
+    startAudioButton.removeAttribute("title");
     try {
-      await initAudio();
+      await ensureMicStream();
       startAudioButton.textContent = "Audio Ready";
       document.dispatchEvent(new CustomEvent("webfft:start-audio"));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       startAudioButton.textContent = "Start Audio";
-      startAudioButton.disabled = false;
       startAudioButton.title = msg;
+    } finally {
+      inFlight = false;
+      if (startAudioButton.textContent === "Audio Ready") {
+        startAudioButton.disabled = true;
+      } else {
+        startAudioButton.disabled = false;
+      }
     }
+  };
+
+  startAudioButton.addEventListener("click", () => {
+    void run();
   });
+  startAudioButton.addEventListener(
+    "pointerup",
+    (ev) => {
+      if (ev.pointerType === "touch") {
+        void run();
+      }
+    },
+    { passive: true },
+  );
 }
 
 bindTabClicks();

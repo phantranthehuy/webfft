@@ -1,4 +1,10 @@
-import { initAudio, createAnalyser, resumeSharedAudioContext } from "../audioEngine.js";
+import {
+  createAnalyser,
+  ensureMicStream,
+  hasLiveMicStream,
+  getSharedAudioContext,
+  resumeSharedAudioContext,
+} from "../audioEngine.js";
 import { yinDetectPitchHz } from "../dsp/yin.js";
 import { formatHz } from "../utils/format.js";
 import { appendChildren } from "../utils/domHelpers.js";
@@ -221,14 +227,14 @@ function teardownAudio() {
   timeBuf = null;
 }
 
-async function onStartAudio() {
+async function connectTunerMic() {
   teardownAudio();
   if (statusEl) {
     statusEl.textContent = "Đang mở micro…";
   }
 
   try {
-    const { context, stream } = await initAudio();
+    const { context, stream } = await ensureMicStream();
     ctxAudio = context;
     const sr = context.sampleRate;
 
@@ -258,6 +264,12 @@ async function onStartAudio() {
       statusEl.textContent = `Lỗi: ${msg}`;
     }
   }
+}
+
+async function connectTunerMicIfPrimed() {
+  if (!hasLiveMicStream() || !getSharedAudioContext()) return;
+  if (ctxAudio && analyser && srcNode) return;
+  await connectTunerMic();
 }
 
 /**
@@ -321,7 +333,7 @@ function mountTunerUi(root) {
   ro.observe(canvasWrap);
 
   const onStartAudioEv = () => {
-    void onStartAudio();
+    void connectTunerMic();
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
 
@@ -353,6 +365,7 @@ export function createTunerMode(root) {
       if (!teardown) {
         teardown = mountTunerUi(root);
       }
+      void connectTunerMicIfPrimed();
       if (isTunerPanelVisible() && analyser && freqBuf && canvasEl) {
         startLoop();
       }

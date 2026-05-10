@@ -1,4 +1,10 @@
-import { initAudio, createAnalyser, resumeSharedAudioContext } from "../audioEngine.js";
+import {
+  createAnalyser,
+  ensureMicStream,
+  hasLiveMicStream,
+  getSharedAudioContext,
+  resumeSharedAudioContext,
+} from "../audioEngine.js";
 import { fft } from "../dsp/fft.js";
 import { hanning, hamming, blackman } from "../dsp/stft.js";
 import { formatHz } from "../utils/format.js";
@@ -123,12 +129,15 @@ function wireAnalyser(fftSize) {
   analyser.connect(muteOut);
 }
 
-async function onStartAudio() {
+/**
+ * Nối Analyser với micro (tái dùng sau Start Audio nếu đã có luồng).
+ */
+async function connectAnalyzerMic() {
   teardownAudio();
   statusEl && (statusEl.textContent = "Đang mở micro…");
 
   try {
-    const { context, stream } = await initAudio();
+    const { context, stream } = await ensureMicStream();
     ctxAudio = context;
 
     muteOut = context.createGain();
@@ -152,6 +161,13 @@ async function onStartAudio() {
       statusEl.textContent = `Lỗi: ${msg}`;
     }
   }
+}
+
+/** Khi đã Start Audio trước rồi mới vào tab — sự kiện có thể đã phát trước khi mount. */
+async function connectAnalyzerMicIfPrimed() {
+  if (!hasLiveMicStream() || !getSharedAudioContext()) return;
+  if (ctxAudio && analyser && srcNode) return;
+  await connectAnalyzerMic();
 }
 
 function applyControlsFromUi(selFft, selScale, selMode, selWin) {
@@ -337,7 +353,7 @@ function mountSpectrumUi(root) {
   ro.observe(canvasWrap);
 
   const onStartAudioEv = () => {
-    void onStartAudio();
+    void connectAnalyzerMic();
   };
   document.addEventListener("webfft:start-audio", onStartAudioEv, { signal });
 
@@ -369,6 +385,7 @@ export function createSpectrumAnalyzerMode(root) {
       if (!teardown) {
         teardown = mountSpectrumUi(root);
       }
+      void connectAnalyzerMicIfPrimed();
       if (isAnalyzerPanelVisible() && analyser && canvasEl) {
         startLoop();
       }

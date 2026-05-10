@@ -1,6 +1,11 @@
 import * as dsp from "../dsp.js";
 import { hanning } from "../dsp/stft.js";
-import { initAudio, resumeSharedAudioContext } from "../audioEngine.js";
+import {
+  ensureMicStream,
+  getSharedAudioContext,
+  hasLiveMicStream,
+  resumeSharedAudioContext,
+} from "../audioEngine.js";
 
 const FFT_N = 1024;
 const HOP = FFT_N >> 1;
@@ -526,7 +531,7 @@ function mountNoiseReduction(root) {
         }
         monitorGain = null;
       }
-      const { context, stream } = await initAudio();
+      const { context, stream } = await ensureMicStream();
       ctx = context;
       monitorGain = ctx.createGain();
       monitorGain.gain.value = 0.85;
@@ -687,54 +692,65 @@ function mountNoiseReduction(root) {
   { signal },
 );
 
+  async function attachNoisePipelineFromMic() {
+    try {
+      const { context, stream } = await ensureMicStream();
+      disconnectReducer();
+      if (micSrc) {
+        try {
+          micSrc.disconnect();
+        } catch {
+          /* ignore */
+        }
+        micSrc = null;
+      }
+      if (monitorGain) {
+        try {
+          monitorGain.disconnect();
+        } catch {
+          /* ignore */
+        }
+        monitorGain = null;
+      }
+      ctx = context;
+      monitorGain = ctx.createGain();
+      monitorGain.gain.value = 0.85;
+      monitorGain.connect(ctx.destination);
+      micSrc = ctx.createMediaStreamSource(stream);
+      micSrc.connect(monitorGain);
+      statusEl.textContent = `Audio sẵn sàng (${Math.round(ctx.sampleRate)} Hz). Sample nhiễu rồi bật khử nhiễu.`;
+      recBtn.disabled = !noiseProfile;
+      if (nrEnabled && noiseProfile) {
+        await wireNoiseReduction();
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      statusEl.textContent = `Start audio: ${msg}`;
+    }
+  }
+
+  async function attachNoiseMicIfPrimed() {
+    if (!hasLiveMicStream() || !getSharedAudioContext()) return;
+    if (ctx && micSrc && monitorGain) return;
+    await attachNoisePipelineFromMic();
+  }
+
   document.addEventListener(
     "webfft:start-audio",
     () => {
       if (!isNoisePanelVisible()) return;
-      void (async () => {
-        try {
-          const { context, stream } = await initAudio();
-          disconnectReducer();
-          if (micSrc) {
-            try {
-              micSrc.disconnect();
-            } catch {
-              /* ignore */
-            }
-            micSrc = null;
-          }
-          if (monitorGain) {
-            try {
-              monitorGain.disconnect();
-            } catch {
-              /* ignore */
-            }
-            monitorGain = null;
-          }
-          ctx = context;
-          monitorGain = ctx.createGain();
-          monitorGain.gain.value = 0.85;
-          monitorGain.connect(ctx.destination);
-          micSrc = ctx.createMediaStreamSource(stream);
-          micSrc.connect(monitorGain);
-          statusEl.textContent = `Audio sẵn sàng (${Math.round(ctx.sampleRate)} Hz). Sample nhiễu rồi bật khử nhiễu.`;
-          recBtn.disabled = !noiseProfile;
-          if (nrEnabled && noiseProfile) {
-            await wireNoiseReduction();
-          }
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          statusEl.textContent = `Start audio: ${msg}`;
-        }
-      })();
+      void attachNoisePipelineFromMic();
     },
     { signal },
   );
 
-  return () => {
-    teardownAll();
-    ac.abort();
-    root.innerHTML = "";
+  return {
+    dispose() {
+      teardownAll();
+      ac.abort();
+      root.innerHTML = "";
+    },
+    attachNoiseMicIfPrimed,
   };
 }
 
@@ -743,8 +759,8 @@ function mountNoiseReduction(root) {
  * @returns {{ id: string, isRealtimeAudio: boolean, enter: () => void, exit: () => void }}
  */
 export function createNoiseReductionMode(root) {
-  /** @type {(() => void) | null} */
-  let teardown = null;
+  /** @type {{ dispose: () => void; attachNoiseMicIfPrimed: () => Promise<void> } | null} */
+  let nrApi = null;
 
   return {
     id: "noise",
@@ -752,13 +768,14 @@ export function createNoiseReductionMode(root) {
     enter() {
       if (!root) return;
       void resumeSharedAudioContext();
-      if (!teardown) {
-        teardown = mountNoiseReduction(root);
+      if (!nrApi) {
+        nrApi = mountNoiseReduction(root);
       }
+      void nrApi.attachNoiseMicIfPrimed();
     },
     exit() {
-      teardown?.();
-      teardown = null;
+      nrApi?.dispose();
+      nrApi = null;
     },
   };
 }

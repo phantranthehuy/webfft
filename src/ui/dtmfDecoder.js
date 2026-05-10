@@ -1,6 +1,9 @@
 import {
   ensureAudioContext,
-  initAudio,
+  ensureMicStream,
+  getSharedAudioContext,
+  getSharedMediaStream,
+  hasLiveMicStream,
   resumeSharedAudioContext,
 } from "../audioEngine.js";
 import { fft } from "../dsp/fft.js";
@@ -561,7 +564,7 @@ function mountDtmfDecoder(root) {
     micBtn.disabled = true;
     statusEl.textContent = "Đang mở micro…";
     try {
-      const { context, stream } = await initAudio();
+      const { context, stream } = await ensureMicStream();
       audioCtx = context;
       ensureGraph({ monitorSpeakers: false });
       wireMicFromSharedStream(stream);
@@ -572,6 +575,23 @@ function mountDtmfDecoder(root) {
       statusEl.textContent = `Micro lỗi: ${msg}`;
     } finally {
       micBtn.disabled = false;
+    }
+  }
+
+  async function syncMicFromPrimedStartAudio() {
+    if (srcSel.value !== "mic") return;
+    if (!hasLiveMicStream() || !getSharedAudioContext()) return;
+    try {
+      const stream = getSharedMediaStream();
+      const ctx = getSharedAudioContext();
+      if (!stream || !ctx) return;
+      audioCtx = ctx;
+      ensureGraph({ monitorSpeakers: false });
+      wireMicFromSharedStream(stream);
+      statusEl.textContent = `Micro · ${Math.round(ctx.sampleRate)} Hz`;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      statusEl.textContent = `Micro (đồng bộ): ${msg}`;
     }
   }
 
@@ -628,21 +648,24 @@ function mountDtmfDecoder(root) {
     { signal },
   );
 
-  return () => {
-    stopLoop();
-    disconnectMic();
-    for (const n of [analyser, tapGain, outGain]) {
-      try {
-        n?.disconnect();
-      } catch {
-        /* ignore */
+  return {
+    dispose() {
+      stopLoop();
+      disconnectMic();
+      for (const n of [analyser, tapGain, outGain]) {
+        try {
+          n?.disconnect();
+        } catch {
+          /* ignore */
+        }
       }
-    }
-    analyser = null;
-    tapGain = null;
-    outGain = null;
-    ac.abort();
-    root.innerHTML = "";
+      analyser = null;
+      tapGain = null;
+      outGain = null;
+      ac.abort();
+      root.innerHTML = "";
+    },
+    syncMicFromPrimedStartAudio,
   };
 }
 
@@ -651,8 +674,8 @@ function mountDtmfDecoder(root) {
  * @returns {{ id: string, isRealtimeAudio: boolean, enter: () => void, exit: () => void }}
  */
 export function createDtmfDecoderMode(root) {
-  /** @type {(() => void) | null} */
-  let teardown = null;
+  /** @type {{ dispose: () => void; syncMicFromPrimedStartAudio: () => Promise<void> } | null} */
+  let dtmfApi = null;
 
   return {
     id: "dtmf",
@@ -660,13 +683,14 @@ export function createDtmfDecoderMode(root) {
     enter() {
       if (!root) return;
       void resumeSharedAudioContext();
-      if (!teardown) {
-        teardown = mountDtmfDecoder(root);
+      if (!dtmfApi) {
+        dtmfApi = mountDtmfDecoder(root);
       }
+      void dtmfApi.syncMicFromPrimedStartAudio();
     },
     exit() {
-      teardown?.();
-      teardown = null;
+      dtmfApi?.dispose();
+      dtmfApi = null;
     },
   };
 }
