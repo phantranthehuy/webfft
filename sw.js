@@ -1,5 +1,5 @@
 /** @type {string} */
-const CACHE_NAME = "webfft-static-v4";
+const CACHE_NAME = "webfft-static-v5";
 
 /** CDN cố định (trùng URL import trong mã) để offline/PWA vẫn tải D3 + KaTeX sau khi cài đặt cache. */
 const CDN_ASSETS = [
@@ -17,6 +17,9 @@ const STATIC_ASSETS = [
   "./assets/icons/icon-512.png",
   "./assets/icons/mic_off.svg",
   "./assets/icons/mic_on.svg",
+  "./assets/icons/delete.svg",
+  "./assets/icons/computer.svg",
+  "./assets/icons/phone.svg",
   "./src/app.js",
   "./src/audioEngine.js",
   "./src/dsp.js",
