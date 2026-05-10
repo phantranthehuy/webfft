@@ -5,7 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>WebFFT</title>
     <meta name="description" content="Web-based DFT and audio processing playground." />
+    <meta name="theme-color" content="#121218" />
+    <link rel="manifest" href="manifest.json" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+      crossorigin="anonymous"
+    />
     <link rel="stylesheet" href="assets/css/style.css" />
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body>
     <div class="app">
@@ -87,7 +99,7 @@
             <p>Step through DFT math and FFT butterflies.</p>
           </div>
           <div class="panel-body">
-            <div class="placeholder-card">UI goes here.</div>
+            <div id="dft-simulator" class="dft-simulator"></div>
           </div>
         </section>
 
@@ -103,7 +115,7 @@
             <p>Real-time spectrum and spectrogram.</p>
           </div>
           <div class="panel-body">
-            <div class="placeholder-card">Canvas view goes here.</div>
+            <div id="spectrum-analyzer"></div>
           </div>
         </section>
 
@@ -119,7 +131,7 @@
             <p>Generate and detect DTMF tones.</p>
           </div>
           <div class="panel-body">
-            <div class="placeholder-card">Keypad goes here.</div>
+            <div id="dtmf-decoder"></div>
           </div>
         </section>
 
@@ -135,7 +147,7 @@
             <p>Spectral subtraction demo.</p>
           </div>
           <div class="panel-body">
-            <div class="placeholder-card">Controls go here.</div>
+            <div id="noise-reduction"></div>
           </div>
         </section>
 
@@ -151,7 +163,7 @@
             <p>Detect pitch and cents.</p>
           </div>
           <div class="panel-body">
-            <div class="placeholder-card">Tuner display goes here.</div>
+            <div id="tuner"></div>
           </div>
         </section>
       </main>
