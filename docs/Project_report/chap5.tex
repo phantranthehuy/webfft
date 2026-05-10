@@ -1,0 +1,41 @@
+%===============================================================
+% chap5.tex — Chương 5: Kết quả thực hiện và đánh giá
+%===============================================================
+\pagestyle{fancy}
+\chapter{KẾT QUẢ THỰC HIỆN VÀ ĐÁNH GIÁ}
+
+\section{Môi trường thử nghiệm}
+Đề tài chạy như ứng dụng web tĩnh: phục vụ thư mục gốc repo bằng \texttt{npx serve .} hoặc \texttt{python -m http.server}, mở trên Chrome / Firefox / Edge / Safari bản gần đây. Kiểm thử DSP: Node.js với \texttt{npm test}. Không ghi nhật ký server-side vì không có backend.
+
+\section{Kết quả chức năng theo từng chế độ}
+Các chức năng sau được xác nhận thủ công trên desktop: Simulator nhập dãy và hiển thị butterfly; Analyzer hiển thị phổ và spectrogram khi bật micro; DTMF nhận đúng phím với nguồn oscillator nội bộ; Noise Reduction giảm rõ nền khi đã học mẫu nhiễu tĩnh; Tuner hiển thị Hz và cent khi âm thanh đơn âm đủ rõ.
+
+Để minh hoạ trong báo cáo, chèn ảnh chụp màn hình vào thư mục \verb|images/| và thay các khung giữ chỗ dưới đây (hoặc đổi \verb|\includegraphics| khi đã có file).
+
+\begin{figure}[htbp]
+	\centering
+	\fbox{\parbox[c][3.2cm][c]{0.88\textwidth}{\centering\small\textit{Chèn \texttt{images/ch5-simulator.png} --- tab DFT Simulator}}}
+	\caption{Giao diện mô phỏng DFT/FFT (giữ chỗ).}
+	\label{fig:res-sim}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\fbox{\parbox[c][3.2cm][c]{0.88\textwidth}{\centering\small\textit{Chèn \texttt{images/ch5-analyzer.png} --- Spectrum Analyzer}}}
+	\caption{Phổ / spectrogram thời gian thực (giữ chỗ).}
+	\label{fig:res-analyzer}
+\end{figure}
+
+\section{Đánh giá định tính}
+Giao diện tab và điều hướng hash URL thuận tiện chia sẻ liên kết. Xử lý cục bộ đáp ứng quan điểm quyền riêng tư \cite{repoWebFFT}. Hạn chế: Safari iOS đòi hỏi tương tác người dùng trước khi audio/micro ổn định; tab nền có thể làm \texttt{AudioContext} bị đình chỉ; môi trường phòng thí nghiệm gây phản hồi micro khi vừa phát DTMF vừa thu --- ứng dụng đã tách nguồn oscillator/micro để giảm chồng lấn.
+
+\section{Đánh giá định lượng (gợi ý)}
+Sinh viên có thể bổ sung bảng số liệu sau khi đo:
+\begin{itemize}\itemsep2pt
+	\item Tần suất khung vẽ spectrogram (FPS) hoặc thời gian một vòng STFT qua Performance panel.
+	\item Tỉ lệ nhận đúng mã DTMF cho bộ thử $n$ lần (nguồn nội bộ vs micro).
+	\item Sai số tuner (Hz hoặc cent) so với nguồn sine máy phát đã hiệu chỉnh.
+\end{itemize}
+
+\section{Nhận xét và so sánh phương án}
+\texttt{AnalyserNode} tận dụng FFT tối ưu của trình duyệt, thích hợp hiển thị phổ mượt với chi phí CPU thấp cho UI. FFT/IFFT trong \texttt{dsp} và worklet cho phép kiểm soát cửa sổ, hop và thuật toán trừ phổ nhất quán với mục đích giảng dạy và tái tạo âm thanh. Trade-off: trùng lặp hai đường phân tích nhưng phục vụ hai mục tiêu khác nhau (khám phá vs pipeline tuỳ biến).

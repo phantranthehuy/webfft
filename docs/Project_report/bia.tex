@@ -1,0 +1,53 @@
+%===============================================================
+% bia.tex — Trang bìa
+% Các biến \TenDeTai, \TenGVHD, \TenSVTH, \MSSV, \NgayBaoCao
+% được khai báo trong main.tex
+%===============================================================
+\setlength{\parindent}{0pt}
+
+\begin{titlepage}
+
+	% --- Khung trang bìa ---
+	\begin{tikzpicture}[remember picture, overlay]
+	\draw [line width=1pt]
+	($ (current page.north west) + (3.0cm,-2.0cm) $)
+	rectangle
+	($ (current page.south east) + (-2.0cm,3.0cm) $);
+	\draw [line width=3pt]
+	($ (current page.north west) + (2.85cm,-1.85cm) $)
+	rectangle
+	($ (current page.south east) + (-1.85cm,2.85cm) $);
+	\end{tikzpicture}
+
+	% --- Thông tin trường ---
+	\begin{center}
+		\vspace{7pt}
+		\textbf{
+			ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH\\
+			TRƯỜNG ĐẠI HỌC BÁCH KHOA THÀNH PHỐ HỒ CHÍ MINH\\
+		}
+		\vspace{7pt}
+		\textbf{KHOA ĐIỆN - ĐIỆN TỬ}\\
+		\textbf{BỘ MÔN VIỄN THÔNG}\\
+		\textbf{--------------------  *  ---------------------}\\[1cm]
+	\end{center}
+
+	\begin{center}
+		\includegraphics[width=0.25\textwidth]{images/logo-bku.png}\\[1.5cm]
+		{\large \BKUsubject}\\[2cm]
+		{\LARGE \textbf{\parbox[c][3cm]{14cm}{\centering \TenDeTai}}}\\[3.2cm]
+	\end{center}
+
+	% --- Thông tin sinh viên ---
+	\hspace{5cm}\parbox[t]{10cm}{
+		\textbf{GVHD: \TenGVHD}\\[3pt]
+		\textbf{SVTH: \TenSVTH}\\[3pt]
+		\textbf{MSSV: \MSSV}
+	}
+	\vfill
+
+	\begin{center}
+		\textbf{Thành phố Hồ Chí Minh, \NgayBaoCao}
+	\end{center}
+
+\end{titlepage}

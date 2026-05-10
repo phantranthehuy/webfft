@@ -1,0 +1,16 @@
+%===============================================================
+% ketluan.tex — Kết luận
+%===============================================================
+\chapter*{{\Large\begin{center}KẾT LUẬN\end{center}}}
+\addcontentsline{toc}{chapter}{Kết luận}
+
+\section*{Kết quả đạt được}
+Đề tài đã xây dựng ứng dụng web WebFFT tích hợp năm chế độ: mô phỏng DFT/FFT với butterfly tương tác; phân tích phổ và spectrogram thời gian thực; giải mã DTMF; khử nhiễu spectral subtraction trên AudioWorklet; và chỉnh âm dựa trên thuật toán YIN. Kiến trúc SPA module hoá giúp tái sử dụng tầng DSP thuần và kiểm thử tự động một phần. Toàn bộ xử lý âm thanh thực hiện trên trình duyệt người dùng, không phụ thuộc máy chủ tính toán.
+
+\section*{Hướng phát triển}
+\begin{itemize}\itemsep2pt
+	\item Tối ưu FFT bằng WebAssembly hoặc WebGPU cho khử nhiễu đa kênh hoặc khung lớn hơn.
+	\item Mở rộng stereo, pipeline khử vọng nhẹ hoặc giảm nhiễu thích nghi (Wiener, mạng học sâu --- ngoài phạm vi hiện tại).
+	\item Xuất/nhập WAV đầy đủ và preset tham số cửa sổ FFT cho thí nghiệm so sánh có kiểm soát.
+	\item Cải thiện accessibility (ARIA, chủ đề tương phản) và đa ngôn ngữ giao diện.
+\end{itemize}

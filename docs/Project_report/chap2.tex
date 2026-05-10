@@ -1,0 +1,40 @@
+%===============================================================
+% chap2.tex — Chương 2: Cơ sở lý thuyết
+%===============================================================
+\pagestyle{fancy}
+\chapter{CƠ SỞ LÝ THUYẾT}
+
+\section{Lấy mẫu và tín hiệu rời rạc}
+Tín hiệu âm thanh liên tục $x_a(t)$ được lấy mẫu với chu kỳ $T_s$, tạo dãy $x[n]=x_a(nT_s)$, tần số lấy mẫu $f_s=1/T_s$. Định lý lấy mẫu (Nyquist--Shannon) yêu cầu băng thông có giới hạn sao cho $f_s > 2 f_{\max}$ để tránh chồng phổ (aliasing). Trong WebFFT, âm thanh từ micro hoặc \texttt{AudioContext} đã được card âm thanh / trình duyệt lượng tử hoá ở $f_s$ thông dụng (thường 44,1 kHz hoặc 48 kHz); người dùng chọn kích thước FFT (\texttt{fftSize}) ảnh hưởng độ phân giải tần $\Delta f = f_s/N$ và độ trễ quan sát \cite{oppenheim}.
+
+\section{Biến đổi Fourier rời rạc (DFT) và thuật toán FFT}
+Với dãy phức độ dài $N$, DFT định nghĩa
+\begin{equation}
+	X[k]=\sum_{n=0}^{N-1} x[n]\, e^{-j 2\pi kn/N}, \qquad k=0,\ldots,N-1.
+\end{equation}
+IDFT khôi phục $x[n]$ từ $X[k]$ với hệ số chuẩn hoá $1/N$. DFT trực tiếp có độ phức tạp $O(N^2)$, thích hợp cho mô phỏng giáo dục trên $N$ nhỏ trong Simulator.
+
+Thuật toán FFT radix-2 Cooley--Tukey tận dụng phân rã đệ quy và tính chất tuần hoàn của hệ số quay pha (twiddle), giảm độ phức tạp xuống $O(N\log N)$ khi $N$ là lũy thừa 2 \cite{cooleyJW}. Cấu trúc tính toán biểu diễn bằng các ``bướm'' hai đầu vào hai đầu ra (butterfly). Trong mã nguồn, FFT và IFFT phục vụ khử nhiễu và các chức năng phân tích nội bộ được triển khai trong \verb|src/dsp/fft.js| và tái sử dụng trong AudioWorklet.
+
+\section{STFT, spectrogram và cửa sổ thời gian}
+Để phân tích tín hiệu không dừng, ta chia khung độ dài $N$, nhân cửa sổ $w[n]$ giảm rò mép (spectral leakage), rồi DFT từng khung:
+\begin{equation}
+	X[m,k]=\sum_{n=0}^{N-1} x[n+mH]\, w[n]\, e^{-j 2\pi kn/N},
+\end{equation}
+với $H$ là bước nhảy (hop). Spectrogram là $|X[m,k]|$ hoặc biên độ log theo thời gian $m$. Độ phân giải tần và thời gian đánh đổi nhau khi thay $N$, $H$ và kiểu cửa (Hann, Hamming, Blackman---hệ số được dùng trong Analyzer và trong các chỗ cần so sánh với pipeline DSP).
+
+\section{Đa tần DTMF và phát hiện hai thành phần tần số}
+DTMF kết hợp một tần thấp (nhóm hàng) và một tần cao (nhóm cột) trong các giá trị chuẩn hoá quốc tế \cite{ituQ23}. Nguyên lý nhận dạng trong miền tần: sau cửa sổ và FFT, tìm hai đỉnh biên độ rõ trong hai dải hàng và cột; ghép cặp suy ra ký tự phím. Phương pháp đơn giản nhưng đủ minh hoạ liên hệ giữa phân tích phổ và ra quyết định.
+
+\section{Khử nhiễu kiểu trừ phổ (spectral subtraction)}
+Giả thuyết thống kê gọn thường dùng trong giảng dạy: phổ quan sát $Y[k]$ gần bằng tín hiệu sạch $S[k]$ cộng nhiễu $N[k]$ theo năng lượng
+\begin{equation}
+	|Y[k]|^2 \approx |S[k]|^2 + |N[k]|^2 .
+\end{equation}
+Ước lượng $|N[k]|$ từ khung chỉ có nhiễu (noise prototype), sau đó suy ra biên độ sạch $\hat{S}[k]$ bằng trừ (và giới hạn sàn nhiễu để tránh artefact âm ``musical noise'' \cite{oppenheim}). Triển khai trong đề tài dùng STFT khung cố định và tái tạo miền thời gian qua IFFT chồng khung (COLA với sqrt-Hann), chi tiết lập trình xem \verb|noiseReducer.js|.
+
+\section{Ước lượng cao độ và thuật toán YIN}
+YIN ước lượng chu kỳ cơ bản $\tau$ (đơn vị mẫu) bằng hàm sai khác bình phương và phiên bản chuẩn hoá trung bình lũy kế (CMND)\footnote{Cumulative Mean Normalized Difference --- trong mã gọi là CMD theo biến \texttt{cmd}.}, sau đó tìm cực tiểu dưới ngưỡng tin cậy; nội suy parabol quanh cực tiểu cải thiện độ phân giải tần số \cite{cheveigne2002}. Tần số $f_0 = f_s/\tau$. Sai số cao độ so với nốt nhạc chuẩn thường biểu diễn bằng cent: một octave $=1200$ cent.
+
+\section{Web Audio API và luồng xử lý thời gian thực}
+\texttt{AudioContext} quản lý đồ thị nút âm thanh: nguồn (\texttt{MediaStreamAudioSourceNode}, \texttt{OscillatorNode}), xử lý (\texttt{GainNode}), và phân tích (\texttt{AnalyserNode}). Luồng render âm thanh chạy trên luồng riêng độ trễ thấp; \texttt{AudioWorklet} cho phép chèn xử lý mẫu theo mẫu hoặc khối PCM đồng bộ với đồng hồ âm thanh, phù hợp FFT/IFFT khử nhiễu \cite{mdnWorklet}. \texttt{AnalyserNode.getFloatTimeDomainData} cung cấp PCM cho tuner và có thể kết hợp với pipeline FFT của trình duyệt để vẽ phổ mượt \cite{mdnAudio}.

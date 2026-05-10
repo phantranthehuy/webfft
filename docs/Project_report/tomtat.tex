@@ -1,0 +1,15 @@
+%===============================================================
+% tomtat.tex — Tóm tắt đề tài
+%===============================================================
+\begin{center}
+	\textbf{{\Large\textcolor{black}{TÓM TẮT ĐỀ TÀI}}}
+\end{center}
+
+\vspace{1cm}
+
+\hspace*{2cm}
+Đề tài xây dựng \textit{WebFFT} --- một ứng dụng web đơn trang (SPA) chạy hoàn toàn trên trình duyệt, không máy chủ xử lý âm thanh: vừa phục vụ học tập nguyên lý biến đổi Fourier rời rạc (DFT) và thuật toán FFT (sơ đồ butterfly tương tác), vừa minh họa các bài toán xử lý tín hiệu âm thanh thời gian thực gồm phân tích phổ và spectrogram, giải mã đa tần DTMF, khử nhiễu kiểu trừ phổ trong AudioWorklet, và ước lượng cao độ bằng thuật toán YIN cho bộ chỉnh âm nhạc cụ.
+
+Phương pháp thực hiện dựa trên JavaScript (ES modules), Web Audio API (\texttt{AudioContext}, \texttt{AnalyserNode}, \texttt{OscillatorNode}), AudioWorklet cho luồng audio độ trễ thấp, và các mô-đun DSP tự cài đặt (DFT, FFT radix-2, STFT, số phức) trong thư mục \verb|src/dsp/|. Giao diện gồm năm chế độ độc lập theo tab, điều hướng bằng URL hash; ứng dụng có thể triển khai tĩnh và hỗ trợ PWA (manifest, service worker). Toàn bộ dữ liệu âm thanh được xử lý cục bộ trên máy người dùng.
+
+Kết quả đạt được là một công cụ trực quan, đa nền tảng, có kiểm thử đơn vị (\texttt{npm test}) cho các thành phần DSP và giải mã chọn lọc; báo cáo trình bày cơ sở lý thuyết, kiến trúc phần mềm, chi tiết triển khai thuật toán và đánh giá chức năng cùng hướng phát triển tiếp theo.

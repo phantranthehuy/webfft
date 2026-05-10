@@ -1,0 +1,43 @@
+%===============================================================
+% chap4.tex — Chương 4: Thiết kế và triển khai giải thuật phần mềm
+%===============================================================
+\pagestyle{fancy}
+\chapter{THIẾT KẾ VÀ TRIỂN KHAI GIẢI THUẬT PHẦN MỀM}
+
+\section{Mô-đun DSP dùng chung}
+\texttt{complex.js} định nghĩa phép toán số phức phục vụ DFT phức trong Simulator. \texttt{dft.js} triển khai DFT/IDFT độ phức tạp $O(N^2)$ cho giáo trình. \texttt{fft.js} xuất FFT radix-2 và IFFT cùng quy ước pha $\mathrm{e}^{-2\pi ijk/N}$, được \verb|noiseReducer.js| nhúng lại (phiên bản Float32 trong worklet). \texttt{stft.js} gói cửa sổ và FFT nội bộ cho Analyzer khi cần đối chiếu với \texttt{AnalyserNode}. \texttt{dsp.js} tái xuất API gọn cho các module UI.
+
+\section{DFT Simulator và sơ đồ butterfly}
+Người dùng nhập dãy độ dài $N$ (thực hoặc phức). Simulator gọi DFT từng bước hoặc FFT tùy chế độ so sánh; \texttt{butterflyData.js} sinh cấu trúc tầng FFT để \texttt{butterflySvg.js} (D3.js) vẽ SVG tương tác. KaTeX trong trang hiển thị công thức nhất quán với báo cáo.
+
+\section{Spectrum Analyzer}
+Luồng micro vào \texttt{AnalyserNode}; UI lấy miền thời gian hoặc phổ FFT theo API trình duyệt, đồng thời có nhánh gọi STFT trong \texttt{spectrumAnalyzer.js} để nhân cửa sổ Hann/Hamming/Blackman và FFT trong JS, hiển thị chồng lên hoặc đối chiếu như mô tả README dự án. \texttt{spectrumCanvas.js} vẽ thanh phổ và waterfall spectrogram trên Canvas.
+
+\section{Bộ giải mã DTMF}
+Hai \texttt{OscillatorNode} tạo tone chuẩn khi chọn nguồn nội bộ; khi chọn micro, chỉ phân tích luồng thu được để tránh phản hồi. Khung PCM qua cửa sổ Hann rồi FFT (\texttt{dsp}); tìm cực đại cục bộ trong các dải hàng/cột ITU \cite{ituQ23}, ánh xạ sang phím.
+
+\section{Khử nhiễu thời gian thực}
+\texttt{pcmCapture.js} và UI \texttt{noiseReduction.js} cho phép ghi prototype nhiễu (vector biên độ phổ trung bình). Worklet \texttt{noiseReducer.js} chia khung $N=1024$, hop $512$, sqrt-Hann thỏa COLA; vòng lặp spectral subtraction, IFFT, overlap-add, giới hạn biên độ đầu ra.
+
+\section{Instrument Tuner (YIN)}
+PCM mono đưa vào \texttt{yinDetectPitchHz} (\texttt{yin.js}): hàm sai khác, CMD, ngưỡng 0{,}15, nội suy parabol quanh cực tiểu. \texttt{tunerDisplay.js} ánh xạ Hz sang nốt và độ lệch cent.
+
+\section{Kiểm thử tự động}
+Bộ \verb|tests/| (\texttt{node --test}): \texttt{dsp.test.js}, \texttt{butterflyData.test.js}, \texttt{dtmf.test.js}, \texttt{yin.test.js}. Lệnh \texttt{npm test} giúp hồi quy khi sửa FFT hoặc nhận dạng.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Bản đồ chức năng chính tới file mã nguồn}
+	\label{tab:module-map}
+	\begin{tabular}{@{}p{4.2cm}p{9cm}@{}}
+		\toprule
+		\textbf{Chức năng} & \textbf{File / thư mục chính} \\
+		\midrule
+		Simulator DFT/FFT & \texttt{dftSimulator.js}, \texttt{dft.js}, \texttt{fft.js}, \texttt{butterflyData.js}, \texttt{butterflySvg.js} \\
+		Analyzer & \texttt{spectrumAnalyzer.js}, \texttt{spectrumCanvas.js}, \texttt{stft.js} \\
+		DTMF & \texttt{dtmfDecoder.js} \\
+		Noise reduction & \texttt{noiseReduction.js}, \texttt{noiseReducer.js}, \texttt{pcmCapture.js} \\
+		Tuner & \texttt{tuner.js}, \texttt{yin.js}, \texttt{tunerDisplay.js} \\
+		\bottomrule
+	\end{tabular}
+\end{table}

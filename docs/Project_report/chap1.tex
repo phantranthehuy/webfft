@@ -1,0 +1,55 @@
+%===============================================================
+% chap1.tex — Chương 1: Giới thiệu
+%===============================================================
+\pagestyle{fancy}
+\chapter{GIỚI THIỆU}
+
+\section{Tổng quan đề tài}
+Biến đổi Fourier rời rạc (DFT) và biến đổi Fourier nhanh (FFT) là nền tảng của nhiều hệ thống xử lý tín hiệu số: phân tích phổ, lọc dựa trên miền tần số, nén và truyền thông. Việc chỉ đọc lý thuyết trên giấy thường khó hình dung cấu trúc tính toán và đánh đổi độ phân giải thời gian--tần số trong xử lý âm thanh thực tế.
+
+Đề tài xây dựng ứng dụng \textbf{WebFFT} --- một SPA chạy trên trình duyệt hiện đại, cho phép người dùng (1) mô phỏng DFT/FFT trên dãy nhỏ và quan sát sơ đồ butterfly; (2) phân tích phổ và spectrogram từ micro thời gian thực; (3) phát và nhận dạng tín hiệu DTMF; (4) demo khử nhiễu kiểu trừ phổ trong AudioWorklet; (5) ước lượng cao độ nhạc cụ bằng thuật toán YIN. Toàn bộ xử lý âm thanh thực hiện \textit{cục bộ} trên máy khách, không gửi buffer lên máy chủ \cite{repoWebFFT}.
+
+\section{Nhiệm vụ đề tài}
+
+\noindent\textbf{Nội dung 1: Mô phỏng DFT/FFT và visualization học tập.}\\
+\vspace{-0.6cm}
+\begin{itemize}\itemsep0pt \parskip0pt \parsep0pt
+	\item \textbf{Mục tiêu:} Giúp người học nhập tín hiệu rời rạc (thực hoặc phức), so sánh kết quả DFT ngây thơ và FFT radix-2, quan sát cấu trúc butterfly.
+	\item \textbf{Ý tưởng thực hiện:} Module \verb|src/dsp/dft.js|, \verb|src/dsp/fft.js|, \verb|src/dsp/butterflyData.js|; giao diện \verb|src/ui/dftSimulator.js| và SVG tương tác \verb|src/visualization/butterflySvg.js|.
+\end{itemize}
+\vspace{-0.2cm}
+
+\noindent\textbf{Nội dung 2: Phân tích phổ và STFT thời gian thực.}\\
+\vspace{-0.6cm}
+\begin{itemize}\itemsep0pt \parskip0pt \parsep0pt
+	\item \textbf{Mục tiêu:} Hiển thị phổ biên độ và spectrogram từ micro; so sánh cửa sổ và có thể đối chiếu FFT nội bộ với pipeline trình duyệt.
+	\item \textbf{Ý tưởng thực hiện:} \verb|AnalyserNode|, \verb|src/dsp/stft.js|, \verb|src/ui/spectrumAnalyzer.js|, \verb|src/visualization/spectrumCanvas.js|.
+\end{itemize}
+\vspace{-0.2cm}
+
+\noindent\textbf{Nội dung 3: Giải mã DTMF.}\\
+\vspace{-0.6cm}
+\begin{itemize}\itemsep0pt \parskip0pt \parsep0pt
+	\item \textbf{Mục tiêu:} Phát hai tone chuẩn hoặc thu qua micro và nhận dạng phím (hàng/cột).
+	\item \textbf{Ý tưởng thực hiện:} FFT sau cửa sổ Hann, tìm hai đỉnh trong dải tần ITU \cite{ituQ23}; \verb|src/ui/dtmfDecoder.js|.
+\end{itemize}
+\vspace{-0.2cm}
+
+\noindent\textbf{Nội dung 4: Khử nhiễu trừ phổ.}\\
+\vspace{-0.6cm}
+\begin{itemize}\itemsep0pt \parskip0pt \parsep0pt
+	\item \textbf{Mục tiêu:} Cho phép học mẫu nhiễu và làm sạch giọng nói theo khung STFT trên luồng audio độ trễ thấp.
+	\item \textbf{Ý tưởng thực hiện:} STFT $N{=}1024$, hop 50\%, cửa sqrt-Hann thỏa COLA; spectral subtraction trong \verb|src/audioWorklet/noiseReducer.js|.
+\end{itemize}
+\vspace{-0.2cm}
+
+\noindent\textbf{Nội dung 5: Bộ chỉnh âm (YIN).}\\
+\vspace{-0.6cm}
+\begin{itemize}\itemsep0pt \parskip0pt \parsep0pt
+	\item \textbf{Mục tiêu:} Ước lượng tần số cơ bản và sai số cent so với nốt nhạc gần nhất.
+	\item \textbf{Ý tưởng thực hiện:} \verb|src/dsp/yin.js|, hiển thị \verb|src/visualization/tunerDisplay.js|.
+\end{itemize}
+\vspace{-0.2cm}
+
+\section{Bố cục đề tài}
+Báo cáo gồm năm chương nội dung và phần kết luận. \textbf{Chương 2} trình bày cơ sở lý thuyết về lấy mẫu, DFT/FFT, STFT, DTMF, trừ phổ, YIN và Web Audio. \textbf{Chương 3} mô tả kiến trúc SPA, phân tầng mã nguồn và luồng dữ liệu âm thanh. \textbf{Chương 4} chi tiết thiết kế và triển khai từng chế độ cùng kiểm thử. \textbf{Chương 5} trình bày kết quả chạy thử, đánh giá định tính và gợi ý đánh giá định lượng. Phần \textbf{Kết luận} tóm tắt đóng góp và hướng phát triển; danh mục tài liệu tham khảo đặt cuối báo cáo.
